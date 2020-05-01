@@ -1,0 +1,17 @@
+{
+    "name": "ComicsPager",
+    "main": "index.html",
+    "webkit": {
+        "plugin":true
+    },
+    "window": {
+        "no-edit-menu": false,
+        "fullscreen":true,
+        "toolbar": true
+    },
+    "fullscreen":true,
+    "dependencies": {
+        "gm": "^1.23.1",
+        "imagemagick": "^0.1.3"
+    }
+}
