@@ -106,11 +106,13 @@ move : function(options){//start,end,step,s=10
 	let reg = new RegExp(project.fileNumMask); 
 	if(Array.isArray(options) && Array.isArray(options[0]))dict = options;// [[from,to]]
 	else if(Array.isArray(options) || ('start' in options)){//[start,end,to,step=10] || {start : ...,}
+		var to_abs;
 		if(Array.isArray(options)){
 			var [start,end,to,step=10] = options;
 			if(!to){ to = end, end = false };
 		}else{
-			var start = options.start, end = options.end, to=options.to, step=options.step || 10
+			var start = options.start, end = options.end, to=options.to,  step=options.step || 10;
+			to_abs = options.TO;
 		}
 		let nums = {}; 
 		files.forEach(f=>{//Получаем список номеров файлов от start до end (или до конца)
@@ -123,9 +125,9 @@ move : function(options){//start,end,step,s=10
 		nums = Object.values(nums);
 		nums.sort((a,b)=>a>b?1:-1);
  
-		let to_abs =  Math.ceil((nums[0]+to)/10)*10;// Из относительного в абсолютное
+		to_abs = to_abs ||  Math.ceil((nums[0]+to)/10)*10;// Из относительного в абсолютное
 		// infoLog(`move ${nums}`);
-		infoLog(`move ${start} , ${to_abs}`);
+		infoLog(`move ${start} , ${to_abs}`); 
 		dict = nums.map(num=>{ 
 				let new_num = to_abs; //
 				to_abs+=step;
@@ -139,7 +141,7 @@ move : function(options){//start,end,step,s=10
 	}
 	// return
 	// infoLog(`move ${dict}`);
-		// console.log( dict)
+		// console.log( dict) 
 		for(let d of dict){
 			let [from,to] = d;
 			from = from+''; 
@@ -167,6 +169,50 @@ move : function(options){//start,end,step,s=10
 	 
 	cb()
 },  
+exchange(options){
+	var files = fs.readdirSync(dir), dict=[]; 
+	let reg = new RegExp(project.fileNumMask); 
+	for(let from in options){
+
+		dict.push([from, options[from]]);
+	}
+		for(let d of dict){
+			let [from,to] = d;
+			from = from+''; 
+			if(MIN>from.length)from ='0'.repeat(MIN-from.length)+from; 
+			to = to+'';
+			if(MIN>to.length)to ='0'.repeat(MIN-to.length)+to; 
+
+			reg = new RegExp('(^(' + PREF_ +  from + ')((_en)|~){0,1}\.\[a-z~]+$)')
+			let list = files.filter(f=>reg.test(f));  
+
+			from = new RegExp(from);
+			let new_list = list.map(f=>f.replace(from,to)); 
+			if( !new_list.find(f=> fs.existsSync(dir+f)) ){//Не повторяется вся группа (иначе возникает чехарда)
+				list.forEach((f,i) => {
+					rename({
+						f_old:new_list[i],
+						f_new:f+'___tmp',
+						Name_old:PREF_ +  from,
+						Name_new:PREF_ +  to+'___tmp'
+					});
+					rename({
+						f_old:f,
+						f_new:new_list[i],
+						Name_old:PREF_ +  from,
+						Name_new:PREF_ +  to
+					});
+					rename({
+						f_old:f+'___tmp',
+						f_new:f,
+						Name_old:PREF_ +  to,
+						Name_new:PREF_ +  from+'___tmp'
+					});
+				})
+			}
+		}
+
+},
 // Создаие новых кадров (аналог move : [Num1,Num2,Num3...] или {start,count,end,step} )
 create : function(o){infoLog(`create`); 
 	console.log(o);
@@ -256,19 +302,45 @@ fixName : function( ){
  clean : function(){
 	//  1) Проходимся по списку файлов, нахдим, где есть svg и меняем его содержимое на то, что задано в списке, а также выравниваем
 	 // 2) Создаем словарь {file.svg:{name:n, img:im, w:w,h:h...}}
-
-	// var files = fs.readdirSync(dir);
-	// let reg = new RegExp(project.fileNumMask); 
-	// files.forEach(f=>{//Получаем список номеров файлов от start до end (или до конца)
-	// 	let n = f.match(reg);
-	// 	if(n&&n[1]){
-			
-	// 	}
-	// })
+	var dict = { }
+	var files = fs.readdirSync(dir);
+	let reg = new RegExp(project.fileNumMask); 
+	files.forEach(f=>{//Получаем список номеров файлов от start до end (или до конца)
+		let n = f.match(reg);
+		if(n&&n[1]&&f.indexOf('.svg')){
+			let i = f.lastIndexOf('.');
+			let f_name = f.substr(0, i);
+			let type =  f.substr(i+1).toLowerCase();
+			if(type === 'jpeg')type = 'jpg';
+			if(type === 'jpg' || type === 'png' || type === 'svg'){
+				dict[f_name] = dict[f_name] || {'svg' : []}
+				if(type === 'svg')dict[f_name].svg.push(f);
+				else if(type === 'png' || type === 'jpg' && !dict[f_name].img)dict[f_name].img = f;
+			}
+		}
+	});
+	var imgReg = /<image[^>]+href=["']([^"']*)["']/;
+	for(var name in dict){
+		let d = dict[name];
+		let img = d.img || '';
+		d.svg.forEach(f=>{
+			let svg = fs.readFileSync(f, 'utf8'); 
+			let r = svg.match(imgReg);
+			if(r&&r.length>1){
+				let Name_old = r[1];
+				if(Name_old!==img){
+					svg = svg.replace(new RegExp(Name_old,'g'),img);
+					fs.writeFile(f, svg, (err)=>{if(err)return console.log(err);}); 
+				}
+			}
+		})
+	}
  }
 
 }
 infoLog(A);
+// if(A instanceof Array)for(var d of A)if(typeof DO[d[0]] === 'function')DO[d[0]](d[1]);
+// else 
 for(var a in A)if(typeof DO[a] === 'function')DO[a](A[a]);
 // if(A.move)move(A.move); 
 // if(A.create) Array.isArray(A.create) ? create.apply(null,A.create) : create(A.create); 

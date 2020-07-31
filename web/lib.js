@@ -448,6 +448,8 @@ var TR = CreateElement.bind(null, 'tr');
 var IMG = CreateElement.bind(null, 'img');
 var BR = CreateElement.bind(null, 'br');
 var PTag = CreateElement.bind(null, 'p');
+var H3 = CreateElement.bind(null, 'h3');
+
 // Создаёт или обновляет эдемент списка
 var LISTEL = function () {
     var A = arguments, 
@@ -1469,3 +1471,140 @@ SVG = function(/* tag|[size],attr,content */){
 }
   }
  
+
+
+  
+
+Autocomplete = (function(){
+    var data = new Map();
+    var drawList = function(opt){
+        opt.aclist.innerHTML = '';
+        opt.getContent(opt.input.value,function(data){
+            var fr = DocFragment(), mult = opt.multivalue;
+            data&&data.forEach(function(d){
+                LI({parentNode:fr},[
+                    mult ? CHECKBOX({checked:false,value:d}) : null,
+                    d
+                ])
+            })
+        },opt)
+    }
+
+    var open = function(ev){
+        var e = this instanceof Element ? this : ev;
+        var opt = data.get(ev);
+        
+    }
+    var close = function(ev){
+        var e = this instanceof Element ? this : ev;
+        var opt = data.get(ev);
+    }
+    var toggle = function(ev,show){
+        var e = this instanceof Element ? this : ev;
+        var opt = opt = ev.input ? ev : data.get(ev);
+        if(!opt)return;
+        show = toggleElDisplay(opt.acbox,show);
+        if(show)drawList(opt);
+        if(opt.btn){
+            //opt.btn.classList.toggle("",show)
+        }
+    }
+    var init = function(e,opt){
+        e = getEl(e);
+        var input = e;
+        if(data.has(input))return;
+        var opt = Object.assign({
+            input : input,
+            getContent : function(val,cb,opt){
+                var val = val.toLoverCase();
+                return opt.list&&opt.list.filter(function(v){return v.toLoverCase().indexOf(val)!==-1})
+
+            }
+        },opt);
+        data.set(e,opt);
+        
+        opt.acbox = DIV({className:'ac-box'});
+        opt.acbox.style.display = 'none';
+        var place = DIV({className:'ac-place'},opt.acbox);
+
+        opt.aclist = UL({className:'ac-list',parentNode:opt.acbox});
+
+        if(opt.multivalue){
+            var applyBtn = SPAN({className:'redButtonOuter'},INPUT({type:'button',className:'ac-apply-button' },'Применить'))
+            DIV({className:'bottomController',parentNode:opt.acbox},[
+                applyBtn
+            ]);
+        }
+        if(opt.btn){
+            data.set(opt.btn,opt);
+            input.addEventListener('click',toggle);
+        }
+        input.after(place);
+        input.addEventListener('input',open);
+        // input.addEventListener('blur',open);
+    }
+     
+    return function(e, opt){
+        switch(opt){
+            default:
+                init(e,opt);
+        }
+    }
+})();
+
+
+typeValue = function(v){
+    var _v = v;
+    switch(v){
+        case "true":
+        case "True":
+        case "TRUE":
+            _v = true;
+        break;
+        case "false":
+        case "False":
+        case "FALSE":
+            _v = false;
+        break;
+    }
+    if(typeof _v === 'string' && _v == +_v){
+        _v = +_v;
+    }
+    return _v;
+}  
+
+    // Simple JavaScript Templating
+// John Resig - http://ejohn.org/ - MIT Licensed
+tmpl =  (function(){
+    var cache = {};
+    
+    return  function tmpl(str, data){
+      // Figure out if we're getting a template, or if we need to
+      // load the template - and be sure to cache the result.
+      var fn = !/\W/.test(str) ?
+        cache[str] = cache[str] ||
+          tmpl(document.getElementById(str).innerHTML) :
+        
+        // Generate a reusable function that will serve as a template
+        // generator (and which will be cached).
+        new Function("obj",
+          "var p=[],print=function(){p.push.apply(p,arguments);};" +
+          
+          // Introduce the data as local variables using with(){}
+          "with(obj){p.push('" +
+          
+          // Convert the template into pure JavaScript
+          str
+            .replace(/[\r\t\n]/g, " ")
+            .split("<%").join("\t")
+            .replace(/((^|%>)[^\t]*)'/g, "$1\r")
+            .replace(/\t=(.*?)%>/g, "',$1,'")
+            .split("\t").join("');")
+            .split("%>").join("p.push('")
+            .split("\r").join("\\'")
+        + "');}return p.join('');");
+      
+      // Provide some basic currying to the user
+      return data ? fn( data ) : fn;
+    };
+  })();

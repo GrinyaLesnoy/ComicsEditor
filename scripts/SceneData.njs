@@ -67,6 +67,15 @@ try {
             }
         }
         fs.writeFile(dir + '/scene.json', JSON.stringify(DATA.scene, null, '\t'), (err) => { if (err) errorLog(err); });
+        fs.writeFile(dir + '/_renameData.njs', `module.exports = {
+            // move : {0:0}, 
+            // move : [0,10],
+            // create : [10,20]
+            // clean : true
+            // rescene : [19,20]
+            create :{start: 10, count:18}
+            // move : {start:10, to:20}
+        };`, (err) => { if (err) errorLog(err); });
     }
 
     var texts = {};

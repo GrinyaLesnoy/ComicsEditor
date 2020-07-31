@@ -1,5 +1,7 @@
 EDITOR = {
-    ui : {},
+    ui : {
+        input : {}
+    },
     current : {
         active : null,
         selected : [],
@@ -14,8 +16,60 @@ EDITOR = {
         EDITOR.sidebar.addEventListener('click',function(ev){
             if(ev.target.dataset.action && !ev.target.closest('[disabled]'))EDITOR.actions[ev.target.dataset.action].call(ev.target,ev);
         });
-        INPUT({className:'h3', readonly : true, name:name, parentNode:EDITOR.sidebar})
-            .addEventListener('click',ev=>ev.target.select())
+        EDITOR.ui.svgtree = UL({id:"SVGTree",className:'width100' });
+        EDITOR.ui.svgtree.addEventListener("click",function(ev){
+            var outer = this;
+            var e = ev.target.closest(".nodeItem");
+            if(ev.target.classList.contains('toggler')){
+                e.classList.toggle("opened")
+            }else if(ev.target.classList.contains('content')||ev.target.classList.contains('nodeItem')){
+                outer.querySelectorAll(".nodeItem.selected,.nodeItem.hasSelected").forEach(function(e){
+                    e.classList.remove("selected","hasSelected")
+                });
+                e.classList.add("selected");
+                var cur = e.svgNode
+                while(e = e.parentNode.closest("#SVGTree .nodeItem")){
+                    e.classList.add("hasSelected","opened");
+                }
+
+                EDITOR.current.node = cur;
+                EDITOR.ui.input.item.value = '';
+                switch(cur.nodeType){
+                    case 1:
+                        EDITOR.ui.input.item.value = EDITOR.current.node.style.cssText;
+                        e = cur.closest("text");
+                    break;
+                    default:
+                        EDITOR.ui.input.item.value = cur.textContent;
+                        e = cur.parentNode.closest("text");
+                        
+                } 
+                if(e && EDITOR.current.active!==e)cur.dispatchEvent(new CustomEvent("click",{bubbles:true}))
+            }
+        })
+        
+        EDITOR.ui.svgtreebox = DIV({id:"svgctrlr",className:'width100',  parentNode:EDITOR.sidebar},[
+            EDITOR.ui.svgtree
+        ]);
+        EDITOR.ui.input.name = INPUT({className:'width100', readonly : true, name:"name", parentNode:EDITOR.sidebar});
+        EDITOR.ui.input.name.addEventListener('click',ev=>ev.target.select())
+        EDITOR.ui.input.item = TEXTAREA({className:'width100', name:"item", parentNode:EDITOR.sidebar})
+        EDITOR.ui.input.item.addEventListener('change',ev=>{
+            var cur = EDITOR.current.node;
+            switch(cur.nodeType){
+                case 1:
+                    cur.style.cssText = ev.target.value
+
+                break;
+                case 3:
+                    EDITOR.insertText(cur.parentNode,ev.target.value,true);
+                break;
+                default:
+                    cur.textContent = ev.target.value
+
+            }
+
+        })
         EDITOR.setBTN('cut');
         // EDITOR.setBTN('remove',{},'X');
         EDITOR.setBTN('movetext');
@@ -52,12 +106,13 @@ EDITOR = {
 			xmlns:xlink="http://www.w3.org/1999/xlink"
 			xmlns:sodipodi="http://sodipodi.sourceforge.net/DTD/sodipodi-0.dtd"
 			xmlns:inkscape="http://www.inkscape.org/namespaces/inkscape"
-			version="1.1" viewBox="0 0 ${d.W} ${d.H}" height="${d.H}" width="${d.W}" >
+			version="1.1" viewBox="0 0 ${d.W} ${d.H}" height="${d.H}" width="${d.W}" class="framesvg">
 				<defs id="defs2">
 					<style id="style5694">
-						path{fill:#fff; stroke:${PROJECT.styles.fillStyle};
+						svg.framesvg path{fill:#fff; stroke:${PROJECT.styles.fillStyle};
 						stroke-width:${stroke};
-						opacity:1;} text, div, textarea, p, flowPara{${ PROJECT.styles.FRAME.svgFont }; }
+                        opacity:1;} 
+                        svg.framesvg text, svg.framesvg div, svg.framesvg textarea, svg.framesvg p, svg.framesvg flowPara{${ PROJECT.styles.FRAME.svgFont }; }
 
 					</style>
 				</defs> 
@@ -249,33 +304,41 @@ EDITOR = {
         Frame_click : function(ev){
             var svg = ev.target.closest('svg'),
             textTag = svg && ev.target.closest('svg div, text');
+                var selection = window.getSelection();
+                var textNode = selection.anchorNode;
 			if( svg && !textTag){
-				var firstNode = TextNode('');
+				textNode = TextNode('');
 				textTag = SVG('text',{x:ev.offsetX,y:ev.offsetY,parentNode: svg},
 					SVG('tspan',{x:ev.offsetX,y:ev.offsetY},
-						firstNode
+                    textNode
 					)
 				);
-				var selection = window.getSelection();
 				var range = document.createRange();
-				range.setStart(firstNode,0);
-				range.setEnd(firstNode,0); 
+				range.setStart(textNode,0);
+				range.setEnd(textNode,0); 
 				selection.removeAllRanges();
 				selection.addRange(range);
-				console.log('create',firstNode, svg)
+				console.log('create',textNode, svg)
             }
+
             
+            for(let n in EDITOR.ui.input)EDITOR.ui.input[n].value = "";
+            
+            EDITOR.current.node = textNode;
+            EDITOR.current.svg = svg;
             if(textTag){
                 EDITOR.console('text',textTag);
                 EDITOR.last.active = EDITOR.current.active;
+                if(EDITOR.last.active)
+                    EDITOR.cleanSVGText(EDITOR.last.active);
                 EDITOR.last.selected = [].concat(EDITOR.current.selected);
                 EDITOR.current.active = textTag;
                 EDITOR.current.selected = [];
-                EDITOR.current.selected.push(textTag)
+                EDITOR.current.selected.push(textTag);
             }
-            EDITOR.current.svg = svg;
+            EDITOR.drawTree()
             EDITOR.current.name = svg.closest('.frame').getAttribute('name');
-            EDITOR.sidebar.querySelector('input[name]').value = EDITOR.current.name;
+            EDITOR.ui.input.name.value = EDITOR.current.name;
 
             if(svg)EDITOR.actions.past();
 
@@ -544,47 +607,14 @@ EDITOR = {
         },
         Frame_mouseout : function(ev){
 
-            console.log('blur',ev.target,ev)
-            this.querySelectorAll('text').forEach((text)=>{
-                // Убиваем пустые в конце
-                Array.from(text.children).reverse().find((tspan)=>{ 
-                    if(tspan.textContent.trim()){
-                        return true;
-                    }else{
-                        tspan.remove();
-                        return false;
-                    }
-                })
-                if(text.children.length === 0)text.remove()
-            })
-            this.querySelectorAll('div').forEach(function(div){
-                div.innerHTML = div.innerHTML.trim()
-                if(!div.innerText.trim())div.remove();
-            })
+            console.log('blur' );
+            // EDITOR.cleanSVG(this); 
         },
         saveBtn_click : function(){
             var isFrameBtn = this.parentNode.classList.contains('frame');
             var svg_orig = isFrameBtn ? this.parentNode.querySelector('svg') : EDITOR.current.svg;
             var svg = svg_orig.cloneNode(true);
-            svg.querySelectorAll('text').forEach((text)=>{
-                // Убиваем пустые в конце
-                Array.from(text.children).reverse().find((tspan)=>{ 
-                    if(tspan.textContent.trim()){
-                        
-                        return true;
-                    }else{
-                        tspan.remove();
-                        return false;
-                    }
-                })
-                if(text.children.length === 0)text.remove()
-                else{ 
-                    text.style.cssText = PROJECT.styles.FRAME.svgFont + ';' + text.style.cssText;
-                    Array.from(text.children).forEach(tspan=>{
-                        tspan.textContent = tspan.textContent.replace(/(&nbsp;|\s)/g,' ').trim();
-                    });
-            }
-            });
+             EDITOR.cleanSVG(svg);
             svg.querySelector('foreignObject').remove();
             svg_orig.querySelectorAll('div').forEach(function(div){
                 var innerHTML = div.innerHTML.replace(/(<br[\/]{0,1}>)/g,'\n').trim()
@@ -719,22 +749,155 @@ EDITOR = {
             EDITOR.current.selected.forEach(t=>t.remove());
             EDITOR.changeFrame();
         },
-        repair(noTrim){
+        repair(trim){
             EDITOR.current.selected.forEach(text=>{
-                
+                EDITOR.cleanSVGText(text);
                 text.setAttribute('x',~~(+text.getAttribute('x')));
                 text.setAttribute('y',~~(+text.getAttribute('y')));
                 text.querySelectorAll('tspan').forEach(tspan=>{
                     tspan.setAttribute('x',~~(+tspan.getAttribute('x')));
                     tspan.setAttribute('y',~~(+tspan.getAttribute('y')));
                     var t = tspan.innerHTML; 
-                    if(!noTrim)t= t.trim();
+                    if(trim)t= t.trim();
                     tspan.innerHTML = t;
                 })
                 
             });
         }
        
+    },
+    insertText(tspan, text, select){
+        
+        var cur = tspan;
+        
+        var textArr = text.replace(/\r/g,'').split('\n');
+        cur.textContent = textArr[0];
+        if(textArr.length>1){
+            var svg = cur.closest('svg');
+            var fontSize = parseInt(getComputedStyle(cur).fontSize) || PROJECT.styles.FRAME.fontSize;
+            var lh = fontSize*PAGE.styles.lineHeight;
+            var x = parseInt(cur.getAttribute('x') || 0);
+            var y = parseInt(cur.getAttribute('y') || 0); 
+            
+            for(var i = 1;i<textArr.length;i++){
+                let tspan = SVG('tspan',{ x :x,y:y+i*lh },textArr[i]);
+                let next = cur;
+                while(next = next.nextElementSibling)
+                    next.setAttribute('y',+next.getAttribute('y') + lh); 
+                cur.after(tspan);
+                cur = tspan;
+            };
+            if(select){
+                var selection = window.getSelection();
+                var textNode = cur.lastChild; 
+				var range = document.createRange();
+				range.setStart(textNode,textNode.textContent.length-1);
+				range.setEnd(textNode,textNode.textContent.length-1); 
+				selection.removeAllRanges();
+				selection.addRange(range);
+                cur.dispatchEvent(new CustomEvent("click",{bubbles:true}));
+            }
+        }
+    },
+    // Дерево svg
+    drawTree : function(){
+        var svg = EDITOR.current.svg;
+        var outer = EDITOR.ui.svgtree;
+        var cur = EDITOR.current.node;
+        outer.innerHTML = '';
+        var drawNode = function(node,parent){
+            var e;
+            switch(node.nodeType){
+                case 1:
+                    var ch = UL({className:'children'});
+                    e = LI({
+                        className:'tagItem nodeItem',
+                        parentNode:parent
+                    },[
+                        SPAN({className:'toggler'}),
+                        DIV({
+                            className:'content',
+                            dataset : {
+                                tag : node.tagName
+                            }
+                        }),
+                        ch,
+                    ]);
+                    for(var i=0; i< node.childNodes.length; i++){
+                        drawNode( node.childNodes[i],ch)
+                    }
+                break;
+                case 8:
+                    e = LI({
+                        className:'commentItem nodeItem',
+                        parentNode:parent
+                    },
+                        DIV({
+                            className:'content',
+                            dataset:{content: node.textContent}
+                        })
+                    )
+                break;
+                case 3:
+                    var text = node.textContent.trim();
+                    if(text || node === cur)
+                    e = LI({
+                        className:'textItem nodeItem',
+                        parentNode:parent
+                    },
+                        DIV({
+                            className:'content',
+                            dataset:{content: node.textContent}
+                        })
+                    )
+                break;
+            }
+            if(e){
+                
+                e.svgNode = node;
+                if(node === cur){
+                    // e.classList.add('selected','opened');
+                    // while(e.parentNode!==outer){
+
+                    // }
+                    e.dispatchEvent(new CustomEvent("click",{bubbles:true}))
+                }
+            }
+        }
+        if(svg)drawNode(svg,outer)
+    },
+    arrayToText : function(textArr,cur, W){
+        
+        var svg = cur.closest('svg');
+        var fontSize = parseInt(getComputedStyle(cur).fontSize) || PROJECT.styles.FRAME.fontSize;
+        var lh = fontSize*PAGE.styles.lineHeight;
+        var x = parseInt(cur.getAttribute('x') || 0);
+        var y = parseInt(cur.getAttribute('y') || 0);
+        var Wsvg = svg.getBoundingClientRect().width;
+        var scale = Wsvg/svg.getAttribute('width');
+        //    Заходит ли за предел выделенной области? 
+        var W = parseInt(x)*scale - Wsvg;
+        var i = 0;
+        textArr.forEach((t)=>{
+            let tspan = SVG('tspan',{parentNode:text ,x :x,y:y+i*lh });
+            i++;
+            let $t = t.split(/\s/), _t=$t.shift();
+            let _tl = _t;
+            for(let word of $t){
+                _t+= ' ' + word;
+                tspan.textContent = _t;
+                if(tspan.getBoundingClientRect().width > W){//Если больше ширины - возвращаем прошлое значение и создаем новую строку
+                    tspan.textContent = _tl;
+                    tspan = SVG('tspan',{parentNode:cur ,x :x,y:y+i*lh, textContent: word });
+                    i++;
+                    _tl = _t = word;
+                }else{ 
+                    _tl = _t;
+                }
+                
+            }
+
+        });
     },
     textAnchor(tA){
         var text = EDITOR.current.active;; 
@@ -841,4 +1004,33 @@ EDITOR = {
         EDITOR.changeFrame();
         
     },
+    cleanSVGText(text){
+        // Убиваем пустые в конце
+        Array.from(text.children).reverse().find((tspan)=>{ 
+            if(tspan.textContent.trim()){
+                
+                return true;
+            }else{
+                tspan.remove();
+                return false;
+            }
+        })
+        if(text.children.length === 0)text.remove()
+        else{ 
+            text.style.cssText = PROJECT.styles.FRAME.svgFont + ';' + text.style.cssText;
+            Array.from(text.children).forEach(tspan=>{
+                tspan.textContent = tspan.textContent.replace(/(&nbsp;|\s)/g,' ').trim();
+            });
+        }
+    
+
+    },
+    cleanSVG(svg){
+        console.log("cleanSVG")
+        svg.querySelectorAll('text').forEach(EDITOR.cleanSVGText);
+        svg.querySelectorAll('div').forEach(function(div){
+            div.innerHTML = div.innerHTML.trim()
+            if(!div.innerText.trim())div.remove();
+        })
+    }
 }

@@ -74,6 +74,8 @@ document.addEventListener("DOMContentLoaded", ()=>{
 				--page-width: ${PROJECT.styles.PAGE.width}px;
 				--page-height: ${PROJECT.styles.PAGE.height}px;
 				--frame-font:${PROJECT.styles.FRAME.font};
+				--frame-fontSize:${PROJECT.styles.FRAME.fontSize};
+				--page-zoom:${PROJECT.styles.PAGE.scale || 1};
 				--fill:${PROJECT.styles.fillStyle};
 		  	}
 			

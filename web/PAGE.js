@@ -318,8 +318,8 @@ PAGE = {
 
 			}) 
 			let cont = PROJECT.scene.texts[frm.name] || {texts : []};
-			let scale  = (frm.imgPos[6]+2*padding)/frm.imgPos[2];
-			scale = Math.round(scale*100)/100;
+			let scale  = (frm.imgPos[6])/frm.imgPos[2];//+2*padding
+			// scale = Math.round(scale*100)/100;
 
 			
 			
@@ -332,20 +332,32 @@ PAGE = {
 				texts : cont.texts
 			}
 			
-			svgBlock = EDITOR.createSVG(svgAttr);
+			var svgBlockOuter = EDITOR.createSVG(svgAttr);
 			
+			
+			let svg = svgBlockOuter.querySelector('svg');
+			
+			var svgBlock = svg.parentNode;
+
 			svgBlock.style.transformOrigin = `0 0`
 			svgBlock.style.transform = `scale(${scale})`
 			svgBlock.toggleAttribute('contenteditable',true);
 
-			
-			let svg = svgBlock.querySelector('svg');
-			fra.appendChild(svgBlock)
+			 
+			fra.appendChild(svgBlockOuter)
  
 			svgBlock.addEventListener('keypress',EDITOR.actions.Frame_keypress);
 			svgBlock.addEventListener('keydown',EDITOR.actions.Frame_keydown);
 
 			svgBlock.addEventListener('mouseout',EDITOR.actions.Frame_mouseout )
+
+			// var paddingX = scale*frm.imgPos[2] - frm.imgPos[6];
+			// var paddingY = scale*frm.imgPos[3] -  frm.imgPos[7];
+			// svgBlockOuter.style.width = frm.imgPos[6]+ 'px';
+			// svgBlockOuter.style.height = frm.imgPos[7] + 'px';
+			// svgBlockOuter.style.overflow = 'hidden';
+			// svgBlock.style.marginLeft = -1*paddingX/2 + 'px';
+			// svgBlock.style.marginTop = -1*paddingY/2 + 'px';
 			// svgBlock.addEventListener('focus',function(ev){
 			// 	console.log('focus',ev.target,ev)
 			// })
@@ -436,10 +448,10 @@ PAGE = {
 
 		pageData.addEventListener('click',EDITOR.actions.Frame_click)
 		 
-		DIV({className:'page-box', parentNode:PAGE.container},[
+		var pageBox = DIV({className:'page-box', parentNode:PAGE.container},[
 			DIV({className:'page-block'},this.ctx.canvas),
 			DIV({className:'page-block'},pageData)
-		]);    
+		]);   
 
 		this.page++;this.closed=true;
 	},
@@ -550,10 +562,19 @@ PAGE = {
 		PROJECT.list.forEach(PAGE.setFrame,PAGE);
 		if(PAGE.closed === false)PAGE.closePage();
 		let st = document.createElement('div');
+
+		st.id = "footer";
 		st.style.padding='20px 10px'; 
 		st.innerHTML=`<b>Pages:</b> ${this.stat.pages} (${PROJECT.scene.pages.first} - ${PROJECT.scene.pages.first+this.stat.pages})<br/>
 		<b>Frames:</b> ${this.stat.frames}<br/>`;
 		PAGE.container.appendChild(st);
+
+		 
+		var pageScale = PROJECT.styles.PAGE.scale || 1;
+		if(pageScale!==1){
+			PAGE.container.style.transformOrigin = `0 0`;
+			PAGE.container.style.transform=`scale(${pageScale})`
+		}
 	},
 	stat:{pages:0,frames:0},
 	openScene(s){
