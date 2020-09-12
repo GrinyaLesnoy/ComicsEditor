@@ -153,7 +153,6 @@ var GlobalData = {
     }
 }
 
-
 var CreateElement = newElement = function (/*tagName, attr, content, NS*/) {
     var e,
         //   isNode = mainUI.isNode,
@@ -179,13 +178,15 @@ var CreateElement = newElement = function (/*tagName, attr, content, NS*/) {
             break; 
         case "undefined":
         case 'object':
-            if (!Ai || (Ai  instanceof Node)) {
+            if (!Ai || (Ai  instanceof Element)) {
                 e = Ai; //update current - можно использовать для обновления существующего и создания нового, если тот отсутствует
                 isUpdate = true;
-            } else {
+                break;
+            } else if( !(Ai  instanceof Node) && !(Ai  instanceof DocumentFragment) && typeof Ai.length !== 'number' ){
                 attr = Ai;
                 content = A[1];
                 i = 2;
+                break;
             }
         case 'number':
             content = Ai; 
@@ -197,7 +198,7 @@ var CreateElement = newElement = function (/*tagName, attr, content, NS*/) {
     if (A.length>1 && i === 1) {
         Ai = A[i];
         i=2;
-        if (typeof Ai === 'object' && !(Ai  instanceof Node) && !(Ai  instanceof DocumentFragment) && typeof Ai.length !== 'number') {
+        if (typeof Ai === 'object' && !(Ai  instanceof Node) && !(Ai  instanceof DocumentFragment) && Ai && typeof Ai.length !== 'number') {
             attr = Ai;
             content = A[2];
             i++;
@@ -207,12 +208,15 @@ var CreateElement = newElement = function (/*tagName, attr, content, NS*/) {
         }
     } 
     Ai = A[i];
-    NS = (typeof Ai === 'string') && Ai || (typeof attr === 'object') && attr.NS;
+    NS = (typeof Ai === 'string') && Ai || (typeof attr === 'object') && attr.$NS;
 
     if (NS)  
         switch (NS.toUpperCase()) {
             case 'HTML':
                 NS = 'http://www.w3.org/1999/xhtml';
+                break;
+            case 'XML':
+                NS = 'http://www.w3.org/XML/1998/namespace';
                 break;
             case 'SVG':
                 NS = 'http://www.w3.org/2000/svg';
@@ -226,9 +230,6 @@ var CreateElement = newElement = function (/*tagName, attr, content, NS*/) {
             case 'XUL':
                 NS = 'http://www.mozilla.org/keymaster/gatekeeper/there.is.only.xul';
                 break;
-            case "SODIPODI":
-                NS = "http://sodipodi.sourceforge.net/DTD/sodipodi-0.dtd" 
-            break;
         } 
 
     tagName = tagName || (typeof attr === 'object') && attr.tagName || defaultTag;
@@ -238,7 +239,7 @@ var CreateElement = newElement = function (/*tagName, attr, content, NS*/) {
     if (typeof attr === 'object') for (var a in attr){
         if( attr[a] === null || (typeof attr[a] === 'undefined'))continue;
         switch (a) {
-            case 'tagName': case 'NS': break;
+            case 'tagName': case '$NS': break;
             case 'className': case 'id': case 'href': case 'innerHTML': case 'innerText': case 'textContent': case 'value': case 'checked':
                 e[a] = attr[a];
                 break;
@@ -248,10 +249,13 @@ var CreateElement = newElement = function (/*tagName, attr, content, NS*/) {
                 break;
             case 'dataset':
                 if(attr.dataset)
-                for (var d in attr.dataset) {
+                for (var d in attr.dataset) if(typeof attr.dataset[d] !== 'undefined'){
                     if(d.dataset&&d.indexOf('-')===-1) d.dataset[d] = attr.dataset[d];
                     else e.setAttribute('data-' + d, attr.dataset[d]);
                     //if(!datasetSupport)e.dataset[d] =  attr.dataset[d];
+                }else if(isUpdate){
+                    if(d.dataset&&d.indexOf('-')===-1)delete d.dataset[d];
+                    else e.removeAttribute('data-' + d);
                 }
                 break;
             case 'classList':
@@ -298,27 +302,16 @@ var CreateElement = newElement = function (/*tagName, attr, content, NS*/) {
                     case 'string':
                     case 'number':
                         i = a.indexOf(':');
-                        if (i !== -1) {
+                        if (i !== -1 ) {
                             NS = a.substr(0, i);
                             a = a.substr(i + 1);
                             switch (NS) {
                                 case 'xlink':
                                     NS = 'http://www.w3.org/1999/xlink';
                                     break;
-                                case "sodipodi":
-                                    NS = "http://sodipodi.sourceforge.net/DTD/sodipodi-0.dtd" 
-                                break;
-                                case "inkscape":
-                                    NS = "http://www.inkscape.org/namespaces/inkscape" 
-                                break;
-                                case "rdf":
-                                    NS = "http://www.w3.org/1999/02/22-rdf-syntax-ns#"
-                                break;
-                                case "cc":
-                                    NS = "http://creativecommons.org/ns#"
-                                break;
-                                case "dc":
-                                    NS = "http://purl.org/dc/elements/1.1/"
+                                case 'xmlns':
+                                    NS = 'http://www.w3.org/2000/xmlns/';
+                                    a = 'xmlns:'+a;
                                 break;
                             }
                             e.setAttributeNS(NS, a, val)
@@ -372,6 +365,7 @@ var CreateElement = newElement = function (/*tagName, attr, content, NS*/) {
                                     if(ctx.indexOf('<')!==-1){ 
                                         tmp = tmp ||  document.createElement('template');
                                         tmp.innerHTML = ctx;
+                                        if(tmp.content)fr.appendChild(tmp.content);
                                         while(tmp.firstChild) fr.appendChild(tmp.firstChild);
                                         break;
                                     } 
@@ -438,17 +432,23 @@ var SPAN = CreateElement.bind(null, 'span');
 var STRONG = CreateElement.bind(null, 'strong');
 var EM = CreateElement.bind(null, 'em');
 var LI = CreateElement.bind(null, 'li');
-var ALink = ATag = CreateElement.bind(null, 'a');
+var ALink = CreateElement.bind(null, 'a');
 var INPUT = CreateElement.bind(null, 'input');
 var TEXTAREA = CreateElement.bind(null, 'textarea');
+var FORM = CreateElement.bind(null, 'form');
 var LABEL = CreateElement.bind(null, 'label');
+var TABLE = CreateElement.bind(null, 'table');
+var TBODY = CreateElement.bind(null, 'tbody');
+var THEAD = CreateElement.bind(null, 'thead');
 var TH = CreateElement.bind(null, 'th');
 var TD = CreateElement.bind(null, 'td');
 var TR = CreateElement.bind(null, 'tr');
 var IMG = CreateElement.bind(null, 'img');
-var BR = CreateElement.bind(null, 'br');
 var PTag = CreateElement.bind(null, 'p');
+var H1 = CreateElement.bind(null, 'h1');
+var H2 = CreateElement.bind(null, 'h2');
 var H3 = CreateElement.bind(null, 'h3');
+var H4 = CreateElement.bind(null, 'h4');
 
 // Создаёт или обновляет эдемент списка
 var LISTEL = function () {
@@ -482,7 +482,7 @@ var LISTEL = function () {
         case 'number':
         case 'object':
             if(content  instanceof Node){
-                if(content.tagName === 'LI')break;
+                if(content.tagName === 'LI' || (content instanceof DocumentFragment))break;
             }else if(typeof content === 'object'){
                 if('length' in content)break;
             }
@@ -528,7 +528,7 @@ TypeINPUT = function(type,attr,label,onchange){
     if(typeof label!== 'undefined'){ 
         input = INPUT({type:type,   name : attr.name, value : attr.value, dataset : attr.dataset, checked : attr.checked});
         input.style.display = 'none';
-        res = CreateElement('label', attr, [
+        res = LABEL( attr, [
             input,
             typeof label === 'string' ? SPAN( { className: 'label' }, label) : label
         ]) 
@@ -559,6 +559,11 @@ RADIO = function(attr, label, value, onchange){
             delete attr.value;
         }
         var fr = DocFragment(); 
+        var def, isDef = false;;
+        if(attr["default"] || attr["default"] === 0){
+            def = attr["default"];
+            delete attr["default"]; 
+        }
         label.forEach(function(r, i){
             var at,lb;
             if(typeof r === 'object'){
@@ -571,11 +576,16 @@ RADIO = function(attr, label, value, onchange){
             }
             if(typeof at!=='object')at = {value:at}
             if(lb === true)lb = at.value;
-            TypeINPUT(
+            var inp = TypeINPUT(
                 'radio',
                 Object.assign({parentNode:fr, checked: at.value === value || value === true && i === 0}, attr, at), 
                 lb,
-                onchange)
+                onchange);
+                if(typeof def!== 'undefined'){
+                    if(inp.tagName!=='INPUT')inp = inp.firstChild;
+                    isDef = def === true ? inp.checked : (def === inp.value || def === i);
+                    if(isDef)inp.toggleAttribute('default', isDef)
+                }
         })
         return fr;
     }else{ 
@@ -680,6 +690,7 @@ SELECT.getOPTIONS = function(options, val){
                 }
                 else if(o.text)o = Object.assign({textContent : o.text},o)//Для совместимости
                 default:  o = dCE('option',o);
+                if(o.innerHTML==='')o.innerText = o.value;
             }
             if(o.value == val || !o.value && o.innerText == val) o.toggleAttribute('selected',true);
             content.appendChild(o);
@@ -688,31 +699,89 @@ SELECT.getOPTIONS = function(options, val){
     return content;
 }
 
-CreateTable = function (tag, data, opt) {
+CreateTable = function ( ) { 
+    var A = arguments, i=0;
+    var tag,attr,trAttr = {},content,rows,cols,opt;
+    switch(typeof A[i]){//tag Не обязат
+        case 'string':
+            tag = A[i].toLowerCase(); i++;
+            if(tag === 'tr')rows = 1;
+        break;
+        case 'function':
+            tag = A[i]; i++;
+        break;
+    }
+    switch(typeof A[i]){//tag Не обязат
+        case 'object':
+            if(!Array.isArray(A[i])){ 
+                attr = A[i]; i++;
+                if( attr.tagName ) tag = attr.tagName;
+                if( tag === 'tr' || !tag ) trAttr = attr
+            } 
+        break;
+        case 'function':
+            tag = A[i]; i++;
+        break;
+    }
+    switch(typeof A[i]){
+        case 'number':
+            cols = A[i];
+        break;
+        case 'object':
+            content = A[i];
+        break;
+    }
+    i++;
+    switch(typeof A[i]){
+        case 'number':
+            rows = A[i];
+        break;
+        case 'object':
+            opt = A[i];
+        break;
+    }
+    i++;
+    switch(typeof A[i]){
+        case 'object':
+            opt = A[i];
+        break;
+    } 
+    if(!content&&rows&&cols){//Создание пустой таблийы ('table',5,3)  
+        content = Array.from({length:cols}).fill(''); 
+        if(tag!=='tr')
+            content =  Array.from({length:rows}).fill( content ); 
+    }
     opt = opt || [];
-    if (tag === 'tr' || tag === 'TR') return dCE('tr', data.map(function (d, i) {
+    if(opt && !(opt instanceof Array)){
+        if(opt.rowsAttr)trAttr = opt.rowsAttr;
+        if(opt.colsData)trAttr = opt.colsAttr;
+        if(opt.mainAttr || opt.attr)attr = opt.mainAttr || opt.attr;
+    }
+    attr = attr || {};
+    if (tag === 'tr') return TR(trAttr, content.map(function (d, i) {
         return dCE('td', opt[i] || {}, d)
     })
     )
-    if(!(data[0] instanceof Array))data = [data];
-    data = data.map(function (d) {
-        return dCE('tr', d.map(function (d, i) {
-            return dCE('td', opt[i] || {}, d)
+    if(!(content[0] instanceof Array))content = [content];
+    var _ST = tag.toLowerCase() === 'thead' ? TH : TD;
+    content = content.map(function (d) {
+        return TR(trAttr,d.map(function (d, i) {
+            return _ST(opt[i] || {}, d)
         })
         )
     })
-    return tag ? dCE(tag, data) : data;
+    return tag ? dCE(tag, attr, content) : content;
 }
 
 var hiddenBLOCK = function(/*box,controller,content,show*/){
     var A = arguments, i = 0;
     var box,controller,content,show = false;
     for(i;i<A.length; i++)if(typeof A[i]==='boolean'){
-        show = A[i];
-        i--;
+        show = A[i]; 
         break
     };
-    if(i>1)content = A[i--];
+    i--;
+    if(i>=1)content = A[i--];
     controller = A[i--];
     box = A[i--];
     if(!(box instanceof Element))box = DIV(box||'');
@@ -724,34 +793,48 @@ var hiddenBLOCK = function(/*box,controller,content,show*/){
     box.appendChild(controller); 
     box.appendChild(content);
     controller.addEventListener('click',function(){ 
-        this.parentNode.classList.toggle('group-box-open');
+        var show = this.parentNode.classList.toggle('group-box-open');
+        this.parentNode.dispatchEvent(new CustomEvent('blockToggle',{detail:{show:show}}))
     })
     box.classList.toggle('group-box-open',show); 
 
     return box;
 }
-
+// вкладки
 TABSBLOCK = {
     blocks : new Map(),
     init : function(box, options){
-        var fr = DocFragment();
-        var tabBar = dCE('ul',{className:'tabBar ui-tabs-nav ui-helper-clearfix', parentNode:fr}); 
-        var tabContent = DIV({className:'panelsBox', parentNode:fr});
-        var tab;
+        
+        var tabBar = dCE('ul',{className:'tabBar' }); 
+        var panelsBox = DIV({className:'panelsBox' });
+        var opts = {
+            ui : {
+                box : box,
+                tabBar : tabBar,
+                panelsBox : panelsBox
+            },
+            options : options
+        }
+        TABSBLOCK.blocks.set(tabBar, opts);
+        TABSBLOCK.blocks.set(panelsBox, opts);
+        TABSBLOCK.blocks.set(box, opts);
+        if(options.tabBarClass)tabBar.classList.add(options.tabBarClass);
+        var tab; 
         var onClick = function(ev){
             ev.preventDefault();
             ev.stopPropagation();
             var tab = this;
-            var box = tab.parentNode.parentNode;
+            var opts = TABSBLOCK.blocks.get(tab.parentNode);
+            var box = opts.ui.box;
             var oldIndex = +box.dataset.index;
             var index = +tab.dataset.index;
             if(index!==oldIndex){
-                var panelsList = box.querySelector(':scope > .panelsBox').children;
+                var panelsList = opts.ui.panelsBox.children;
                 var panel= panelsList[index];
-                for(var i =0; i<panelsList.length; i++ )toggleElDisplay(panelsList[i],index === i);
+                for(var i =0; i<panelsList.length; i++ )toggleDisplay(panelsList[i],index === i);
 
-                toggleClassToElement(tab,'ui-tabs-active');
-                toggleClassToElement(tab,'ui-state-active');
+                toggleClassToElement(tab,'active');
+                toggleClassToElement(tab,'active');
 
                 if(typeof options.activate === 'function'){
                     options.activate(ev,{
@@ -774,35 +857,92 @@ TABSBLOCK = {
         if(typeof options.show === 'function'){
             box.addEventListener('onTabShow',function(ev){
                 var index = +this.dataset.index;
+                var opts = TABSBLOCK.blocks.get(this); 
                 options.show(ev,{
                     index : index,
-                    panel : this.querySelector(':scope > .panelsBox').children[index],
-                    tab : this.querySelector(':scope > .tabBar').children[index]
+                    panel : opts.ui.panelsBox.children[index],
+                    tab : opts.ui.tabBar.children[index]
                 })
             })
         }
         options.tabs.forEach(function(tabData,i){
-            tab = LI({parentNode:tabBar,className:'ui-state-default'},
-                ALink({href:'#'+tabData.id},tabData.name)
+            if(tabData.use && tabData.use() !== true)return;
+            var tabName = tabData.name;
+            if(options.labelFormatter)tabName = options.labelFormatter(tabData,i,options.tabs);
+            tab = LI({parentNode:tabBar,className:' ',dataset:{id:tabData.id}},
+                // ALink({href:'#'+tabData.id},tabData.name)
+                tabName
             );
             tab.dataset.index = i;
-            tab.addEventListener('click',onClick)
-            tabContent.appendChild(tabData.tabContent);
-            tabData.tabContent.dataset.index = i;
-            tabData.tabContent.id = tabData.id;
-            tabData.tabContent.classList.add('ui-tabs-panel','layout')
+            tab.dataset.num = i+1;//for design
+            tab.addEventListener('click',onClick);
+            var tabContent = tabData.tabContent;
+            if(!(tabContent instanceof Element))tabContent = DIV(tabContent)
+            panelsBox.appendChild(tabContent);
+            tabContent.dataset.index = i;
+            tabContent.id = tabData.id;
+            tabContent.classList.add( 'layout');
+            if(tabData.viewTab)toggleDisplay(tab,!!tabData.viewTab(),true);
         });
-        box.innerHTML='';
-        box.classList.add('ui-tabs');
-        box.appendChild(fr);
+        box.innerHTML=''; 
+        box.appendChild(panelsBox);
+        if(options.tabBarParentNode instanceof Element)
+            options.tabBarParentNode.appendChild(tabBar);
+        else if(options.tabBarPositon === 'bottom'){
+            panelsBox.after(tabBar);
+        }else{
+            panelsBox.before(tabBar);
+        }
 
         
-
-        (tabBar.children[options.active] || tabBar.children[0]).dispatchEvent(new CustomEvent('click'))
+        var active = (tabBar.children[options.active] || tabBar.children[0]);
+        if(active)active.dispatchEvent(new CustomEvent('click'))
     },
     showTab : function(box,active){
-        var tabBar = box.querySelector(':scope > .tabBar');
-        if(tabBar && tabBar.children[active])tabBar.children[active].dispatchEvent(new CustomEvent('click'))
+        var opts = TABSBLOCK.blocks.get(box);
+        var tabs = opts.ui.tabBar.children;
+        if(tabs.length>0){
+            var newTab;
+            switch(typeof active){
+                case 'number':
+                        newTab = tabs[active];
+                break;
+                case 'string':
+                        newTab = Array.prototype.find.call(tabs,function(li){return li.dataset.id===active});
+                break;
+                case 'object':
+                        newTab = active;
+                break;
+                        
+            }
+            if(newTab instanceof Element){
+                newTab.dispatchEvent(new CustomEvent('click'))
+                return true;
+            }
+            return false;
+        }
+        
+    },
+    setMaxHeight : function(parent){
+        if(parent instanceof Element){
+            // parent.querySelectorAll('panelsBox').forEach(function(){
+
+            // })
+        }
+        var panelsBox = dQ('.cardTabs .panelsBox');
+                    if(panelsBox){
+                        if(Result.currentResultView === Data.resultView.TEXT_DOC_VIEW){
+                        
+                            var cardParent = getEl(DocumentCard.cardParent);
+                            var H = cardParent.offsetHeight; 
+                            
+                            var panelsBoxTop = panelsBox.getBoundingClientRect().top - cardParent.firstElementChild.getBoundingClientRect().top; 
+
+                            panelsBox.style.maxHeight = (H - panelsBoxTop-20) + 'px';
+                        }else{
+                            panelsBox.style.maxHeight = '';
+                        }
+                    }
     }
 }
 
@@ -827,10 +967,10 @@ ExtClosest = function(/*e,selector,limit,etc*/){
     return null;
 } 
 
-FindParent = FindUp = function(  /*e, mask, lim, self*/){ 
+FindParent = FindUpAll = function(  /*e, mask, lim, self*/){ 
     var i =0, start = 0;
     var e = (this instanceof Element)?  this : arguments[i++];
-    if(!e)return null;
+    if(!e)return [null];
     var mask  = arguments[i++]||false; 
     if(arguments.length === i && typeof mask === 'string')return e.closest(mask);
     var lim  = arguments[i++]; 
@@ -850,34 +990,44 @@ FindParent = FindUp = function(  /*e, mask, lim, self*/){
  
     i = 0;
     
+    var LIST = []; 
+    var root = e&&e.ownerDocument;
     if(mask)
-        while( e ){
+        while( e && e!==root ){  
             if(i>=start){
                 switch(typeof mask){
                     case 'number':
-                        if(i === mask)return e;
+                        if(i === mask)LIST.push(e);
                     break;
                     case 'function':
-                        if(mask.call(self || e,e,i))return e;
+                        if(mask.call(self || e,e,i))LIST.push(e);
                     break;
                     case 'string':
-                        if(e.matches(mask))return e;
+                        if(e.matches(mask))LIST.push(e);
                     break;
                     case 'oblect':
-                        if(e === mask)return e;
+                        if(e === mask)LIST.push(e);
                     break;
                 }
                 // if(!e||e.matches(mask))return block; 
-                if( lim === i || lim === e ){
-                    return self === true ? e : self instanceof Node ? self : null
+                
+                if( lim === i || lim === e ){//Если достигло лимита - self=true - включить этот элемент, или self вместо него или null
+                    if(self === true)LIST.push(e);
+                    if(self instanceof Node)LIST.push(self); 
+                    break;
                 }
             }
             e = e.parentNode;
             i++;
         } 
-    return e;
+    return LIST;
 }
+ 
 
+FindParent = FindUp = function(  /*e, mask, lim, self*/){ 
+    return FindUpAll.apply(null,arguments).pop()||null;
+    // return self === true ? e : self instanceof Node ? self : null;
+}
 
 findNextEl = function (e,mask,_) {
     
@@ -943,6 +1093,9 @@ var WRAP = function(e,parent){
 }
     
 
+
+    
+
 STYLES = {
     cssNumber : {//jQuery.cssNumber
         columnCount: true,
@@ -998,81 +1151,43 @@ STYLES = {
             }
         }
     },
+    dictToString : function(data){
+        var s = '';
+        for(var sel in data){
+            s+=sel+'{';
+            for(var p in data[sel])s+=p + ':' + data[sel][p]+';';
+            s+= '}';
+        }
+        return s;
+    },
     addCSS : function(opts) {
         if(typeof opts === 'string')opts = {url:opts}//Для сокращения записи
         // добавление строки css правил
-        if (opts.str) {
-            var tmp = false, is_new = true;
-            if (opts.title) {
-                tmp = dQ("style[id='" + opts.title + "-stylesheet']");
-            }
-            if (tmp) {
-                is_new = false;
-            } else {
-                tmp = EmptyElement("style");
-                tmp.setAttribute('type', "text/css");
-                if (opts.title) {
-                    tmp.setAttribute("id", opts.title + "-stylesheet");
-                }
-            }
+        
+        if (opts.str || opts.styles) {
+            var id = opts.id || (opts.title ? opts.title + "-stylesheet" : null)
+            var el = id && dQ("style[id='" + id + "']") || CreateElement("style",{id:id, type:'text/css', parentNode:document.head}); 
 
-            if (tmp.styleSheet) {
-                // for ie
-                if (is_new) {
-                    document.head.appendChild(tmp);
-                    tmp.styleSheet.cssText = opts.str;
-                } else {
-                    if (opts.clear) {
-                        tmp.styleSheet.cssText = opts.str;
-                    } else {
-                        tmp.styleSheet.cssText = tmp.styleSheet.cssText + " " + opts.str;
-                    }
-                }
+            if (opts.clear)el.innerHTML = "";
 
-            } else {
-                if (opts.clear) tmp.innerHTML = "";
-
-                tmp.appendChild(TextNode(opts.str));
-                document.head.appendChild(tmp);
+            var str = opts.str || '';
+            if(opts.styles){
+                if(opts.styles instanceof Array)str += opts.styles.map(STYLES.dictToString).join('');
+                else str += STYLES.dictToString(opts.styles);
             }
+            el.appendChild(TextNode(str)); 
         }
 
         // загрузка внешнего css файла по урлу
         if (opts.url) {
-            if (document.createStyleSheet) {
-                try {
-                    document.createStyleSheet(contextPath + opts.url);
-                } catch (e) {
-                }
-            } else {
-                var cssLink = EmptyElement('link');
-                cssLink.rel = 'stylesheet';
-                cssLink.type = 'text/css';
-                cssLink.media = "all";
-                cssLink.href = contextPath + opts.url;
-                document.getElementsByTagName("head")[0].appendChild(cssLink);
-            }
+            CreateElement('link',{rel:'stylesheet',type:'text/css', media:"all", href: contextPath + opts.url, parentNode:document.head })
         }
     },
 
     addCSSLinks : function(){
-        var A = Array.isArray(arguments[0]) ? arguments[0] : arguments;
-        var d = document, 
-            head = d.head || d.getElementsByTagName("head")[0];
+        var A = Array.isArray(arguments[0]) ? arguments[0] : arguments; 
         for(var a=0; a<A.length; a++)
-            if (d.createStyleSheet) {
-                try {
-                    d.createStyleSheet(contextPath + A[a]);
-                } catch (e) {
-                }
-            } else {
-                var cssLink = d.createElement('link');
-                cssLink.rel = 'stylesheet';
-                cssLink.type = 'text/css';
-                cssLink.media = "all";
-                cssLink.href = contextPath + A[a];
-                head.appendChild(cssLink);
-            }
+            CreateElement('link',{rel:'stylesheet',type:'text/css', media:"all", href: contextPath + A[a], parentNode:document.head });
     },
 
     deleteCSS : function(opts) {
@@ -1086,47 +1201,35 @@ STYLES = {
             if(e)e.remove();
         }
     },
+
+    get : function(e,prop, formatter){
+        var r = getComputedStyle(e).getPropertyValue(prop);
+        if(formatter === true)formatter = parseInt;
+        if(formatter)r = formatter(r);
+        return r
+    }
 }
 
-
-
-Rect = function (obj) {
-    if (typeof arguments[0] !== 'object' || !obj) {
-        obj = this;
-
-    }
-    var r = {
-        top: 0,
-        left: 0,
-        bottom: 0,
-        right: 0,
-        width: 0,
-        height: 0,
-        winWidth : window.innerWidth,
-        winHeight : window.innerHeight,
-        pageYOffset : window.pageYOffset,
-        pageXOffset : window.pageXOffset
-    };
- 
-
-    if (!obj || obj === window) {
-        r.width = r.winWidth;
-        r.height = r.winHeight;
-    } else if (typeof obj.getBoundingClientRect === 'function') {
-        var rect = obj.getBoundingClientRect();
-        r.width = typeof rect.width === 'number' ? rect.width : obj.clientWidth;
-        r.height = typeof rect.height === 'number' ? rect.height : obj.clientHeight;
-        r.top = r.pageYOffset + rect.top;
-        r.bottom = r.winHeight - (r.pageYOffset + rect.bottom);//
-        // r.bottom = r.winHeight - (r.top + r.height);//
-        r.left = r.pageXOffset + rect.left;
-        r.offsetLeft = obj.offsetLeft;
-        r.right = r.winWidth - (r.pageXOffset + rect.right);//
-        // r.right = r.winWidth - (r.left + rect.width);//
-        r.BCR = rect;
-    }
-    return r
+setScreenCSSSizeCSS = function(){
+    var w = window.innerWidth+'px', h = window.innerHeight+'px';
+    STYLES.addCSS({
+        id : 'ScreenCSSSizeCSS',
+        styles : {
+            '.minHeightScreen,.minHScreen':{ 'min-height':h},
+            '.maxHeightScreen,.maxHScreen':{ 'max-height':h},
+            '.heightScreen,.hScreen':{ 'height':h},
+            '.heightTScreen,.hTScreen':{ 'max-height':h,'min-height':h,'height':h},
+            '.minWidthScreen,.minWScreen':{ 'min-width':w},
+            '.maxWidthScreen, .maxWScreen':{ 'max-width':w},
+            '.widthScreen,.wScreen':{ 'width':w},
+            '.widthTScreen,.wTScreen':{ 'max-width':w,'min-width':w,'width':w}
+        },
+        clear : true
+    })
 }
+//setScreenCSSSizeCSS();
+//window.addEventListener('resize',setScreenCSSSizeCSS);
+
 
 
 SVG = function(/* tag|[size],attr,content */){
@@ -1280,6 +1383,10 @@ SVG = function(/* tag|[size],attr,content */){
                                         case 'xlink':
                                             NS = 'http://www.w3.org/1999/xlink';
                                             break;
+                                            case 'xmlns':
+                                                NS = 'http://www.w3.org/2000/xmlns/';
+                                                a = 'xmlns:'+a;
+                                            break;
                                     }
                                     e.setAttributeNS(NS, a, val)
                                 } else
@@ -1297,7 +1404,7 @@ SVG = function(/* tag|[size],attr,content */){
         
         }
     }
-    console.log(content)
+    // console.log(content)
     if(e.tagName === 'INPUT'){
         if(typeof content === 'boolean' &&(e.type === 'checkbox' || e.type === 'radio'))
             e.checked = content;

@@ -31,20 +31,11 @@ EDITOR = {
                 while(e = e.parentNode.closest("#SVGTree .nodeItem")){
                     e.classList.add("hasSelected","opened");
                 }
-
-                EDITOR.current.node = cur;
-                EDITOR.ui.input.item.value = '';
-                switch(cur.nodeType){
-                    case 1:
-                        EDITOR.ui.input.item.value = EDITOR.current.node.style.cssText;
-                        e = cur.closest("text");
-                    break;
-                    default:
-                        EDITOR.ui.input.item.value = cur.textContent;
-                        e = cur.parentNode.closest("text");
-                        
-                } 
-                if(e && EDITOR.current.active!==e)cur.dispatchEvent(new CustomEvent("click",{bubbles:true}))
+ 
+                EDITOR.setCurrentNode(cur);
+                // EDITOR.current.treeNodeItem = e;
+                // EDITOR.current.treeNodeItemContent = e.querySelector('.content');
+                
             }
         })
         
@@ -53,23 +44,48 @@ EDITOR = {
         ]);
         EDITOR.ui.input.name = INPUT({className:'width100', readonly : true, name:"name", parentNode:EDITOR.sidebar});
         EDITOR.ui.input.name.addEventListener('click',ev=>ev.target.select())
-        EDITOR.ui.input.item = TEXTAREA({className:'width100', name:"item", parentNode:EDITOR.sidebar})
-        EDITOR.ui.input.item.addEventListener('change',ev=>{
-            var cur = EDITOR.current.node;
-            switch(cur.nodeType){
-                case 1:
-                    cur.style.cssText = ev.target.value
+        EDITOR.ui.input.prop = SELECT({className:'width100', name:"prop", parentNode:EDITOR.sidebar});
+        EDITOR.ui.input.prop.addEventListener('change',function(){
+            switch(this.value){
+                case 'style': 
+                    EDITOR.ui.input.item.value = EDITOR.current.node.style.cssText; 
+                break;
+                case 'textContent': 
+                    EDITOR.ui.input.item.value = EDITOR.current.node.textContent; 
+                break;
+                default: 
+                    EDITOR.ui.input.item.value = EDITOR.current.node.getAttribute(this.value);
+            }
+        })
+        EDITOR.ui.input.item = TEXTAREA({className:'width100', name:"item", parentNode:EDITOR.sidebar});
+        var onChange = ev=>{
+            var cur = EDITOR.current.node,
+            prop = EDITOR.ui.input.prop.value,
+            v = ev.target.value;
+            switch(prop){
+                case 'style':
+                    cur.style.cssText = v
 
                 break;
-                case 3:
-                    EDITOR.insertText(cur.parentNode,ev.target.value,true);
+                case 'textContent':
+                    console.log('onChange',ev)
+                    EDITOR.insertText(cur,v,true);
                 break;
+                case 'x':
+                case 'y':
+                    if(cur.tagName==='text'){
+                        if(prop === 'x')EDITOR.moveText(v,false,"a")
+                        else EDITOR.moveText(false,v,"a")
+                        break;
+                    }
                 default:
-                    cur.textContent = ev.target.value
+                    EDITOR.current.node.setAttribute(prop,v);
 
             }
 
-        })
+        }
+        // EDITOR.ui.input.item.addEventListener('change',onChange);
+        EDITOR.ui.input.item.addEventListener('input',onChange);
         EDITOR.setBTN('cut');
         // EDITOR.setBTN('remove',{},'X');
         EDITOR.setBTN('movetext');
@@ -324,18 +340,18 @@ EDITOR = {
             
             for(let n in EDITOR.ui.input)EDITOR.ui.input[n].value = "";
             
-            EDITOR.current.node = textNode;
             EDITOR.current.svg = svg;
             if(textTag){
                 EDITOR.console('text',textTag);
                 EDITOR.last.active = EDITOR.current.active;
-                if(EDITOR.last.active)
+                if(EDITOR.last.active && ev.detail!=='insertText')
                     EDITOR.cleanSVGText(EDITOR.last.active);
                 EDITOR.last.selected = [].concat(EDITOR.current.selected);
                 EDITOR.current.active = textTag;
                 EDITOR.current.selected = [];
                 EDITOR.current.selected.push(textTag);
             }
+            EDITOR.setCurrentNode(textNode);
             EDITOR.drawTree()
             EDITOR.current.name = svg.closest('.frame').getAttribute('name');
             EDITOR.ui.input.name.value = EDITOR.current.name;
@@ -766,19 +782,58 @@ EDITOR = {
         }
        
     },
+    setCurrentNode(cur){
+        var curElem = cur;
+        var last = EDITOR.current.node;
+        EDITOR.current.node = cur;
+        var props = [];
+        switch(cur.nodeType){
+            case 1: 
+                if(last === cur)return;
+                props.push('style');
+                if(cur.tagName === 'tspan')props.push('textContent');
+                var A = cur.attributes;
+                for(let i=0; i<A.length;i++)if(A[i].name!=='style')props.push(A[i].name);
+            break;
+            default: 
+                curElem = cur.parentNode; 
+                // if(last.nodeType === cur.nodeType)return; 
+                props.push('textContent');
+        } 
+        
+        EDITOR.ui.input.item.value = '';
+        EDITOR.ui.input.prop.innerHTML ='';
+        var textElem = curElem.closest("text");  
+
+        EDITOR.ui.input.prop.appendChild(
+            SELECT.getOPTIONS(props)
+        )
+        EDITOR.ui.input.prop.value = props[0];
+        EDITOR.ui.input.prop.dispatchEvent(new CustomEvent("change",{bubbles:true}));
+        if(textElem && EDITOR.current.active!==textElem)curElem.dispatchEvent(new CustomEvent("click",{bubbles:true}))
+    },
     insertText(tspan, text, select){
         
+        if(tspan.nodeType!==1)tspan = tspan.parentNode;
         var cur = tspan;
         
         var textArr = text.replace(/\r/g,'').split('\n');
         cur.textContent = textArr[0];
+        var item =  EDITOR.current.treeMap.get(tspan);
+        item = item&&item.textItem;
+        if(item){
+            // item.e.qu
+            item.content.dataset.content = textArr[0];
+            item.e.svgNode = cur.firstChild;
+        }
+        // EDITOR.setCurrentNode(cur.firstChild);
+        EDITOR.current.node = cur;
         if(textArr.length>1){
             var svg = cur.closest('svg');
             var fontSize = parseInt(getComputedStyle(cur).fontSize) || PROJECT.styles.FRAME.fontSize;
             var lh = fontSize*PAGE.styles.lineHeight;
             var x = parseInt(cur.getAttribute('x') || 0);
             var y = parseInt(cur.getAttribute('y') || 0); 
-            
             for(var i = 1;i<textArr.length;i++){
                 let tspan = SVG('tspan',{ x :x,y:y+i*lh },textArr[i]);
                 let next = cur;
@@ -787,16 +842,29 @@ EDITOR = {
                 cur.after(tspan);
                 cur = tspan;
             };
+            console.log(textArr)
             if(select){
-                var selection = window.getSelection();
-                var textNode = cur.lastChild; 
-				var range = document.createRange();
-				range.setStart(textNode,textNode.textContent.length-1);
-				range.setEnd(textNode,textNode.textContent.length-1); 
-				selection.removeAllRanges();
-				selection.addRange(range);
-                cur.dispatchEvent(new CustomEvent("click",{bubbles:true}));
+                if(!cur.textContent){
+                    // while(cur = cur.previousElementSibling)if(cur.textContent)break;
+                    // if(!cur)cur = tspan;
+                    cur.textContent = " "
+                }
+                if(cur.textContent){
+                    var selection = window.getSelection();
+                    var textNode = cur.lastChild; 
+                    var range = document.createRange();
+                    var p = textNode.textContent.length-1;
+                    if(!cur.textContent.trim())p=0;
+                    range.setStart(textNode,p);
+                    range.setEnd(textNode,p); 
+                    selection.removeAllRanges();
+                    selection.addRange(range);
+                }
+                cur.dispatchEvent(new CustomEvent("click",{bubbles:true, detail:'insertText'}));
+                // if(EDITOR.current.treeNodeItemContent)EDITOR.current.treeNodeItemContent.textContent
+               
             }
+            
         }
     },
     // Дерево svg
@@ -804,9 +872,10 @@ EDITOR = {
         var svg = EDITOR.current.svg;
         var outer = EDITOR.ui.svgtree;
         var cur = EDITOR.current.node;
+        EDITOR.current.treeMap = new Map();
         outer.innerHTML = '';
         var drawNode = function(node,parent){
-            var e;
+            var e, ctx;
             switch(node.nodeType){
                 case 1:
                     var ch = UL({className:'children'});
@@ -815,7 +884,7 @@ EDITOR = {
                         parentNode:parent
                     },[
                         SPAN({className:'toggler'}),
-                        DIV({
+                        ctx = DIV({
                             className:'content',
                             dataset : {
                                 tag : node.tagName
@@ -823,6 +892,9 @@ EDITOR = {
                         }),
                         ch,
                     ]);
+                    
+                    EDITOR.current.treeMap.set(node, {e:e,content:ctx});
+
                     for(var i=0; i< node.childNodes.length; i++){
                         drawNode( node.childNodes[i],ch)
                     }
@@ -832,11 +904,12 @@ EDITOR = {
                         className:'commentItem nodeItem',
                         parentNode:parent
                     },
-                        DIV({
+                        ctx = DIV({
                             className:'content',
                             dataset:{content: node.textContent}
                         })
                     )
+                    EDITOR.current.treeMap.set(e, {item:e,content:ctx});
                 break;
                 case 3:
                     var text = node.textContent.trim();
@@ -845,15 +918,17 @@ EDITOR = {
                         className:'textItem nodeItem',
                         parentNode:parent
                     },
-                        DIV({
+                        ctx = DIV({
                             className:'content',
                             dataset:{content: node.textContent}
                         })
                     )
+                    var parentItem = EDITOR.current.treeMap.get(node.parentNode);
+                    parentItem.textItem =  {e:e,content:ctx};
+                    // EDITOR.current.treeMap.set(node, {item:e,content:ctx});
                 break;
             }
             if(e){
-                
                 e.svgNode = node;
                 if(node === cur){
                     // e.classList.add('selected','opened');
@@ -971,7 +1046,8 @@ EDITOR = {
                 x = X; y = Y;
                 if(type === "a"){
                     var textBB = text.getBBox();
-                    var cx = parseInt(text.getAttribute('x')),cy = parseInt(text.getAttribute('y'));
+                    var cx = parseInt(text.getAttribute('x')),
+                        cy = parseInt(text.getAttribute('y'));
                     
                     if(x<0)x = sW - textBB.width + x;
                     else if(x === false )x = cx;

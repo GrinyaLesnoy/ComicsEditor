@@ -86,12 +86,12 @@ var rename = (o)=>{
 		fs.renameSync(dir+o.f_old, dir+o.f_new) 
 		infoLog(`rename ${o.f_old} => ${o.f_new}` ); 
 		//
-		if(~o.f_new.indexOf('.svg')){
-			let svg = fs.readFileSync(dir+o.f_new, 'utf8') ; 
-			svg = svg.replace(new RegExp(o.Name_old,'g'),o.Name_new);
+		// if(~o.f_new.indexOf('.svg')){
+		// 	let svg = fs.readFileSync(dir+o.f_new, 'utf8') ; 
+		// 	svg = svg.replace(new RegExp(o.Name_old,'g'),o.Name_new);
 			 
-			fs.writeFileSync(dir+o.f_new, svg, (err)=>{if(err)errorLog(err);}); 
-		}   
+		// 	fs.writeFileSync(dir+o.f_new, svg, (err)=>{if(err)errorLog(err);}); 
+		// }   
 	}else{ errorLog('err '+ o.f_old + ' => '+ dir+o.f_new);  }
 }
 
@@ -116,34 +116,39 @@ move : function(options){//start,end,step,s=10
 		}
 		let nums = {}; 
 		files.forEach(f=>{//Получаем список номеров файлов от start до end (или до конца)
-			let n = f.match(reg);
+			let n = f.match(reg); 
 			if(n&&n[1]){
 				n = +n[1];
 				if(n>=start &&  (!end || n<=end))nums[n]=n;
 			}
 		});
+		
 		nums = Object.values(nums);
 		nums.sort((a,b)=>a>b?1:-1);
  
 		to_abs = to_abs ||  Math.ceil((nums[0]+to)/10)*10;// Из относительного в абсолютное
+		;  
 		// infoLog(`move ${nums}`);
 		infoLog(`move ${start} , ${to_abs}`); 
 		dict = nums.map(num=>{ 
-				let new_num = to_abs; //
-				to_abs+=step;
-				return [num,new_num];
-			});  
+			if(step>0)while(to_abs<=num)to_abs+=step;
+			else if(step<0)while(to_abs>=num)to_abs+=step; 
+			let new_num = to_abs; //
+			to_abs+=step;
+			return [num,new_num];
+		});   
 
 		if(to>0)dict.sort((a,b)=>b[0]>a[0] ? 1 : -1);  //если назад - от первого к последнему
-		
+		 
 	}else{ //{from:to}
 		for(let from in options)dict.push([from, options[from]]);
 	}
 	// return
 	// infoLog(`move ${dict}`);
 		// console.log( dict) 
+		// errorLog( JSON.stringify(dict) )
 		for(let d of dict){
-			let [from,to] = d;
+			let [from,to] = d; 
 			from = from+''; 
 			if(MIN>from.length)from ='0'.repeat(MIN-from.length)+from; 
 			to = to+'';
@@ -154,15 +159,32 @@ move : function(options){//start,end,step,s=10
 
 			from = new RegExp(from);
 			let new_list = list.map(f=>f.replace(from,to)); 
-			if( !new_list.find(f=> fs.existsSync(dir+f)) ){//Не повторяется вся группа (иначе возникает чехарда)
-				list.forEach((f,i) => {
-					rename({
-						f_old:f,
-						f_new:new_list[i],
-						Name_old:PREF_ +  from,
-						Name_new:PREF_ +  to
-					});
-				})
+			let zanyat =  new_list.find(f=> fs.existsSync(dir+f));
+			if( !zanyat ){//Не повторяется вся группа (иначе возникает чехарда)
+				if(list.find((f,i) => {
+					// return true;
+					let nf = new_list[i];
+					if (!fs.existsSync(dir + nf)) { 
+						fs.renameSync(dir+f, dir+nf) 
+						infoLog(`rename ${f} => ${nf}` );   
+					}else{ 
+						errorLog('err '+ f + ' => '+ nf); 
+						return true;
+					}
+
+
+					// rename({
+					// 	f_old:f,
+					// 	f_new:new_list[i],
+					// 	Name_old:PREF_ +  from,
+					// 	Name_new:PREF_ +  to
+					// });
+				})){
+					break;
+				}
+			}else{
+				errorLog('err '+ from + ' => '+ to + ' : ' + zanyat );  
+				break;
 			}
 		}
  
@@ -219,7 +241,12 @@ create : function(o){infoLog(`create`);
 	var $tpl = 'frame';
 	var $f = [];
 	if(Array.isArray(o)){//список имён
-		$f = o;
+		if(o[1]<o[0] || typeof o[1] === 'string'){//[170,12] || [170,'12']
+			let start = o[0], count=parseInt(o[1]), step = o[2] || 10;
+			$f = Array.from({length:count},(v,i)=>( start + i*step ));
+		}else{//[170,180...] 
+			$f = o;
+		}
 	}else {
 		// let o = o;
 		console.log(o)
@@ -244,7 +271,7 @@ create : function(o){infoLog(`create`);
 		console.log($f);
 
 		if(o.tpl){
-			if( o.tpl == +o.tpl )$tpl+=o.tpl;//Суффикс 1,2 ...
+			if( o.tpl == +o.tpl || o.tpl[0] == +o.tpl[0] )$tpl+=o.tpl;//Суффикс 1,2 ...
 			else $tpl = o.tpl;
 		}
 	}  

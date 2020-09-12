@@ -132,6 +132,7 @@ PAGE = {
 	ctx : false, 
 	width:1800, 
 	height:1260,
+	pmatrix : [],
 	newPage(){
 		var canvas = document.createElement('canvas');
 		canvas.width=this.width;canvas.height=this.height;
@@ -139,6 +140,7 @@ PAGE = {
 		this.PX =0;
 		this.PY = 0;
 		this.ih=0;
+		this.pmatrix.length = 0;
 		this.closed=false;
 		ctx.rect(0,0,canvas.width,canvas.height);
 		ctx.fillStyle = '#000';
@@ -222,7 +224,9 @@ PAGE = {
 	setFrame(item,i,list){
 		let [fn, {width:W,height:H,path:path,png:pngIMG,svg:svgIMG=false}, f]=item; 
 		if(this.PX===0&&this.PY===0&&this.closed===true)this.newPage();
-		console.log(fn );
+		// console.log(fn );
+		// if(fn  ==='K.S.20.1480')
+		// console.log(fn );
 		let cw = pngIMG.width, ch = pngIMG.height, 
 		cx=0, cy=0, 
 		scale = PAGE.styles.scale, newLine = false; 
@@ -231,36 +235,81 @@ PAGE = {
 		let iw = cw/scale, ih = ch/scale;
 		let m = PROJECT.styles.FRAME.margin, x,y, b = 5;
 		 
+		let CW=iw+m*2, 
+		mH=(~~m*1.5)+ (PROJECT.styles.FRAME.padding || 0),//Погрешность;
+		CH = ih+mH;
 		
 		/*
 		Искать куда поместится
 		
 		*/
-		
-		if(!this.spec[fn]){//Для спецпозиций не рассматривается 
-			let CW=iw+m*2, CH=(~~m*1.5)+ (PROJECT.styles.FRAME.padding || 0);//Погрешность;
-			x=this.PX+m; y=this.PY+m;
-			if((this.PX+=CW)>this.width){//позиция+ширина+отступы больше ширины стр 
-				this.PY+=this.ih+CH;
-				this.ih=0;  
-				if(this.PY+ ih+CH >this.height){this.closePage().newPage(); y=m;}else{
-					y=this.PY+m;
-					newLine = true;
-				} 
-				this.PX = CW; x=m;				
-				console.log(fn,this.PY,CH,this.height);
-				
-			}
-			this.ih = Math.max(this.ih,ih);//Кеширование высоты. max - пока не нужна (задел для алгоритма нестандартных версток)
-			//x=this.PX+m; y=this.PY+m;//let x=25+(iw+50)*this.PX, y=25+(ih+50)*this.PY;
-			
-		}else {console.log(this.spec[fn]);
+		if(this.spec[fn]){// спецпозиций  
+			console.log(this.spec[fn]);
 			({x,y} = this.spec[fn]);
 			if(typeof x === 'string')x=this.PX+m+(~~x);if(x<0)x=this.PX+m+x;
 			if(typeof y === 'string')y=this.PY+m+(~~y);if(y<0)y=this.PY+m+y;
+		}if(this.pmatrix.length === 0){
+			x = m; y=m;
+			this.PX+=CW;
+		} else{//Прочие  
+			let use = true, j,pmatrix = this.pmatrix, pm;
+			let l = pmatrix.length, maxX = this.width-iw, maxY = this.height-ih - mH;
+			if(fn === 'K.S.23.0460')
+				console.log(fn);
+				var minY;// Минимальный y - чтобы не перебирать заведомо занятые значения
+			//Проверить отступы
+			yloop:for(y = m; y<=maxY;y++){
+				for(x = m; x<=maxX;x++){
+					use = true;
+					for(j= 0; j<l; j++){  
+						pm = pmatrix[j];
+						if(
+							( x >= pm[0] && x <= pm[1] || (x+CW) > pm[0] && (x+CW) <= pm[1]  )&&( y >= pm[2]&&y <= pm[3] || (y + CH) >= pm[2]&&(y + CH) <= pm[3] ) ||	
+							x <= pm[0] && (x+CW) >= pm[1] && y <= pm[2] && (y+CH) > pm[3] 
+						){
+							use =  false;
+							x=pm[1];
+							minY = typeof minY === "undefined" || minY > pm[3] ? pm[3] : minY;
+							break;
+							
+						}
+					}
+					if(use === true)break;
+						
+				}
+				if(use === true)break;
+				if(typeof minY === "number")y = Math.round(minY);
+				
+				minY = undefined;
+			}
+
+			// console.log(pmatrix)
+			// x=this.PX+m; 
+			// y=this.PY+m;
+			// this.PX+=CW;
+			if(use === false){//позиция+ширина+отступы больше ширины стр 
+				// this.PY+=this.ih+mH;
+				// this.PY+=CH;
+				// this.ih=0;  
+				// if(this.PY+ CH >this.height){
+					this.closePage().newPage(); x=m; y=m;
+				// }else{
+				// 	y=this.PY+m;
+				// 	newLine = true;
+				// } 
+				// this.PX = CW; 
+				// x=m;				
+				// console.log(fn,this.PY,mH,this.height);
+				
+			}
+			// this.ih = Math.max(this.ih,ih);//Кеширование высоты. max - пока не нужна (задел для алгоритма нестандартных версток)
+			//x=this.PX+m; y=this.PY+m;//let x=25+(iw+50)*this.PX, y=25+(ih+50)*this.PY;
+			
 		} 
+		this.pmatrix.push([x,x+CW-1,y,y+CH-1]);
 		//let ctx = this.ctx; 
-		let arg = [cx, cy,cw,ch,x+b,y+b,iw-b*2,ih-b*2]
+		let arg = [cx, cy,cw,ch,x+b,y+b,iw-b*2,ih-b*2];
+		console.log(arg)
 		this.ctx.drawImage(pngIMG, ...arg); 
 		if(svgIMG)this.ctx.drawImage(svgIMG, ...arg); 
 
