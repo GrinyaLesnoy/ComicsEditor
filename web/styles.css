@@ -7,6 +7,14 @@ body{
     margin-right: var(--sidebar-width);
 }
 
+a{
+    color: #fff;
+    text-decoration: none;
+}
+a:hover{
+    text-decoration: underline;
+}
+
 .width100{
     width: 100%;
 }
@@ -263,4 +271,36 @@ a.saveBtn {
 #footer{
     
     font-size : calc( var(--frame-fontSize) / var(--page-zoom) * 1px);
+}
+
+#scenesList{
+    max-width: 1000px;
+}
+
+#scenesList .Item{
+    display: inline-block;
+    vertical-align: top;
+    padding: 10px;
+    color:#fff;
+    text-decoration: none;
+    box-sizing: border-box;
+    width: 250px;
+}
+
+#scenesList .Item:hover{
+    opacity: 0.8;
+}
+
+#scenesList .Item .imgBox{
+    max-width: 100%;
+    background: rgba(255, 255, 255, 0.87);
+}
+
+#scenesList .Item img{
+    max-width: 100%;
+}
+
+#scenesList .Item .info{
+    font-size: 0.8em;
+    font-style: italic;
 }

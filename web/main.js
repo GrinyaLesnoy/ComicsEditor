@@ -89,6 +89,7 @@ document.addEventListener("DOMContentLoaded", ()=>{
         PAGE.width = PROJECT.styles.PAGE.width;
 		PAGE.height = PROJECT.styles.PAGE.height; 
 		PAGE.scene = PARAMS.scene;
+		PAGE.loacl = location.href.match(/\/([^\/\\\?#]*)([\?|#].*){0,1}$/)[1];
 		if(PROJECT.scene || PROJECT.Scenes)
 		PAGE.Init();
 		EDITOR.Init();

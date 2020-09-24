@@ -1,4 +1,38 @@
 PAGE = {
+	showList(){
+		if(PROJECT.Scenes){
+			var fr = DocFragment(), Scenes = PROJECT.Scenes;
+			var f = PAGE.loacl;
+			var setData = function(s,name){
+				var im=IMG();
+				var info = DIV({className:'info'})
+				var l = ALink({
+					href:f+'?'+s,
+					className:'Item',
+					parentNode:fr
+				},[
+					DIV({className:'imgBox'},im),
+					SPAN({className:'title'},name),
+					info
+				]);
+				loadScript([Scenes[s]+'/SceneDATA.js'],function(){
+					im.src=name + '/'+ DATA.list[0][2];
+					if(DATA.scene.titlePage){
+						DIV({parentNode:info},'Глава ' + DATA.scene.titlePage.chapter)
+					}
+					var p = DATA.scene.pages.first;
+					p = p === 100 ? '' : ', Стр. ' + p+'-... ';
+					DIV({parentNode:info}, `${DATA.list.length} кадров${p}`)
+				})
+			}
+			for(var s in Scenes){
+				setData(s,Scenes[s])
+			}
+			DIV({id:"scenesList",parentNode: document.body},
+				fr
+				)
+		}
+	},
 	Init(){//Для отображения нескольких сцен скопом 
 		
 		PROJECT.scene = Object.assign({ 
@@ -10,6 +44,10 @@ PAGE = {
 		PROJECT.list.forEach((v)=>{ v[1].path = v[1].path||'';}); 
 		let opScenes = PAGE.opScenes = PAGE.opScenes||[];
 		let nextInd = PAGE.nextInd=PAGE.nextInd||0; 
+		if(!PAGE.scene)return PAGE.showList();
+
+		ALink({href:PAGE.loacl, parentNode:document.body},'< К списку сцен')
+
 		PAGE.scene = PAGE.scene || Object.keys(PROJECT.Scenes)[0];
 		var S;// N сцены, Которую надлежит открыть
 		if( !PROJECT.Scenes [PAGE.scene] ){//Чтобы можно было запросить по фрагменту имени, а не по номеру сцены
@@ -311,6 +349,7 @@ PAGE = {
 		let arg = [cx, cy,cw,ch,x+b,y+b,iw-b*2,ih-b*2];
 		console.log(arg)
 		this.ctx.drawImage(pngIMG, ...arg); 
+		// console.log(this.ctx.getImageData(cx, cy,1,1))
 		if(svgIMG)this.ctx.drawImage(svgIMG, ...arg); 
 
 		if(PROJECT.styles.FRAME.border){
