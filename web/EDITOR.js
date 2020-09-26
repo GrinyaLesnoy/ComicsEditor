@@ -1,4 +1,5 @@
 EDITOR = {
+    DOMParser :  new DOMParser(),
     ui : {
         input : {}
     },
@@ -129,17 +130,18 @@ EDITOR = {
         }
     },
     createSVG(d){
-		let stroke = 3;
-		let svg = `<svg 
-			xmlns:dc="http://purl.org/dc/elements/1.1/"
-			xmlns:cc="http://creativecommons.org/ns#"
-			xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#"
-			xmlns:svg="http://www.w3.org/2000/svg"
-			xmlns="http://www.w3.org/2000/svg"
-			xmlns:xlink="http://www.w3.org/1999/xlink"
-			xmlns:sodipodi="http://sodipodi.sourceforge.net/DTD/sodipodi-0.dtd"
-			xmlns:inkscape="http://www.inkscape.org/namespaces/inkscape"
-			version="1.1" viewBox="0 0 ${d.W} ${d.H}" height="${d.H}" width="${d.W}" class="framesvg">
+        let stroke = 3;
+        var svgTag = `<svg 
+        xmlns:dc="http://purl.org/dc/elements/1.1/"
+        xmlns:cc="http://creativecommons.org/ns#"
+        xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#"
+        xmlns:svg="http://www.w3.org/2000/svg"
+        xmlns="http://www.w3.org/2000/svg"
+        xmlns:xlink="http://www.w3.org/1999/xlink"
+        xmlns:sodipodi="http://sodipodi.sourceforge.net/DTD/sodipodi-0.dtd"
+        xmlns:inkscape="http://www.inkscape.org/namespaces/inkscape"
+        version="1.1" viewBox="0 0 ${d.W} ${d.H}" height="${d.H}" width="${d.W}" class="framesvg">`;
+		let svg = `${svgTag}
 				<defs id="defs2">
 					<style id="style5694">
 						svg.framesvg path{fill:#fff; stroke:${PROJECT.styles.fillStyle};
@@ -153,10 +155,11 @@ EDITOR = {
 					<image sodipodi:insensitive="true" xlink:href="${d.img}" y="0" x="0" height="${d.H}" width="${d.W}" />
 				</g>
 				<g id="layer2"></g>
-				${d.pathes&&d.pathes.length>0 ? d.pathes : [`<path id="path5753" d="m 25,-122 c -77,47 56,69 90,53 13,-6 8,-56 -1,-62 -12,-8 -33,0 -47,0 -17,0 -27,7 -41,9 z" style="opacity:1;fill:#fff;stroke:${PROJECT.styles.fillStyle};stroke-width:${stroke};"/>`].join('')}
+				${d.pathes&&d.pathes.length>0 ? d.pathes.join('') : `<path id="path5753" d="m 25,-122 c -77,47 56,69 90,53 13,-6 8,-56 -1,-62 -12,-8 -33,0 -47,0 -17,0 -27,7 -41,9 z" style="opacity:1;fill:#fff;stroke:${PROJECT.styles.fillStyle};stroke-width:${stroke};"/>`}
 				<g id="layer3"></g> 
 				
 		</svg>`; 
+        if(d.name === 'K.S.19.0840')console.log(true)
 		var svgBox = DIV({className:'svgBox', dataset:{name:d.name}},svg);
 		svg = svgBox.firstChild;
 		var foreignObject = SVG('foreignObject',{x :0,y:0,width:d.W,height:d.H, parentNode:svg}  );
@@ -170,6 +173,14 @@ EDITOR = {
 			x = +x||0; y =+y||0;
 			switch(t.type){
 				case 'text':
+                    if(t.cleanedHTML){
+                        p = EDITOR.DOMParser.parseFromString(svgTag+t.cleanedHTML+'</svg>', "image/svg+xml").documentElement.firstChild;
+                        // totdo: clean
+                        if(p.tagName === 'text' && !p.querySelector('parsererror')){
+                            svg.appendChild(p);
+                            break;
+                        }
+                    }
 					p = SVG('text',{parentNode:svg});
 					if(tr)
 					switch(tr_type){

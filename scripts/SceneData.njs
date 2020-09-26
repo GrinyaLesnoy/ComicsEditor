@@ -106,13 +106,19 @@ try {
                 str = str.substr(eI);
             }
             texts[f.slice(0, -4)] = {
-                pathes: svg.match(/(<path[^>]*>)/g),
+                pathes: (svg.match(/(<path[^>]*>)/g)||[]).map(
+                        p=>{
+                            p = p.replace(/sodipodi:nodetypes="[^"]+"/g,"").replace(/\s+/g," ").replace(/\s+/g," ");
+                            if(p.indexOf("/>")===-1)p = p.replace(">","/>");
+                            return p;
+                        }
+                    ),
                 texts: list.map(
                     t => {
                         let r = {
                             type: t.match(/<((flowRoot)|(text))/)[1],
                             innerText: t.replace(/(<\/tspan>)/g, '\n').replace(/\n\n/g, '\n').replace(/(<[^>]*>)/g, '').trim(),
-                            innerHTML: t.replace(/(<\/tspan>)/g, '\n').replace(/(<[^>]*>)/g, '').replace(/(.*<([flowPara]|[text])[^>]*>)/g, '').replace(/(<\/([flowPara]|[text])[^>]*>.*)/g, '').trim(),
+                            cleanedHTML: t.replace(/id="[^"]+"/g,"").replace(/\s+/g," "),
                             attr: {}
 
                         };
