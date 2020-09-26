@@ -53,6 +53,9 @@ EDITOR = {
                 case 'textContent': 
                     EDITOR.ui.input.item.value = EDITOR.current.node.textContent; 
                 break;
+                case 'setContent':  
+                    EDITOR.ui.input.item.value =  Array.prototype.map.call(EDITOR.current.node.children, span => span.textContent ).join('\n')
+                break;
                 default: 
                     EDITOR.ui.input.item.value = EDITOR.current.node.getAttribute(this.value);
             }
@@ -70,6 +73,20 @@ EDITOR = {
                 case 'textContent':
                     console.log('onChange',ev)
                     EDITOR.insertText(cur,v,true);
+                break;
+                case 'setContent':
+                    console.log('onChange',ev);
+                    
+                    var x = +cur.getAttribute('x');
+                    var y = +cur.getAttribute('y');
+                    var fontSize = parseInt(cur.style.fontSize) || PROJECT.styles.FRAME.fontSize; 
+                    var lh = fontSize * PAGE.styles.lineHeight; 
+                    v = v.split(/\n/);
+                    var i = 0, ch = cur.children;
+                    for(;i<v.length; i++)
+                        if(ch[i])ch[i].textContent = v[i];
+                        else SVG('tspan',{parentNode:cur,x :x,y:y+i*lh,textContent:v[i]});
+                    for(;i<ch.length; i++)ch[i].remove();
                 break;
                 case 'x':
                 case 'y':
@@ -790,6 +807,7 @@ EDITOR = {
         switch(cur.nodeType){
             case 1: 
                 if(last === cur)return;
+                if(cur.tagName === 'text')props.push('setContent');
                 props.push('style');
                 if(cur.tagName === 'tspan')props.push('textContent');
                 var A = cur.attributes;
