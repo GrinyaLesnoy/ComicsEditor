@@ -171,7 +171,7 @@ PAGE = {
 	width:1800, 
 	height:1260,
 	pmatrix : [],
-	newPage(){
+	newPage( ){
 		var canvas = document.createElement('canvas');
 		canvas.width=this.width;canvas.height=this.height;
 		let ctx = this.ctx = canvas.getContext("2d");
@@ -185,14 +185,67 @@ PAGE = {
 		ctx.fill();
 		if(this.BG)ctx.drawImage(this.BG,0,0  );
 		this.framesList.length = 0;
+		this.framesInPage.length = 0;
+		this.cols = 0;
+		this.rows = 0; 
+		// this.placeSum
 		console.log('NewPage');
 		return this;
+	},
+	updPageList(){
+		this.framesInPage.length = 0;
+		var start = PAGE.currentFrame;
+		var list = PROJECT.list;
+		this.hasSpec = false;//Специальный размер. Где есть кадры со спец-положением, игнорируем рассчёт позиций
+		let sq = PAGE.placeSq, S = 0,s, item, c = 0, r =0, w =0, j;
+		
+		let mg = PAGE.styles.frameMargin;
+		for(let j = start; j< list.length; j++){
+			item = list[j];
+			let [name, {width:W,height:H,path:path,png:pngIMG,svg:svgIMG=false}, f]=item; 
+			let [scale, cx, cy,file_Width,file_Height] = Object.assign(
+				[
+					PAGE.styles.scale,
+					0,0,
+					pngIMG.width, pngIMG.height
+				],
+				this.sizes[name]
+			);
+			if(typeof scale === 'object')scale=~~(H/scale[1]); 
+			let scaled_Width = file_Width/scale, scaled_Height = file_Height/scale;
+			s = scaled_Width * scaled_Height;
+			if(S + s > sq) break;
+			S += s;
+			if(this.spec[name])this.hasSpec = true;
+			
+	 
+			let placeWidth = scaled_Width+mg*2,  
+			placeHeight = scaled_Height+PAGE.styles.frameMarginVert;
+
+			this.framesInPage.push({
+				name : name,
+				scale : scale,
+				scaled_Width : scaled_Width,
+				scaled_Height : scaled_Height,
+				placeWidth : placeWidth,
+				placeHeight : placeHeight,
+				file_Width : file_Width,
+				file_Height : file_Height,
+				cx : cx,
+				cy : cy,
+				pngIMG : pngIMG,
+				svgIMG : svgIMG,
+				imgFile : item[1].imgFile
+			})	
+		}
+		return this.framesInPage;
 	},
 	page : 0,
 	frame : 0,
 	PX:0,
 	PY:0, 
 	framesList : [],
+	framesInPage : [],
 	framesData : {},
 	setTitle(D){
 		let ctx = this.ctx;
@@ -259,55 +312,122 @@ PAGE = {
 			}else PAGE.setTitle(D);
 		
 	}, 
-	setFrame(item,i,list){
-		let [fn, {width:W,height:H,path:path,png:pngIMG,svg:svgIMG=false}, f]=item; 
-		if(this.PX===0&&this.PY===0&&this.closed===true)this.newPage();
+
+	checkCoord(x,y,placeWidth,placeHeight){
+
+	},
+	setFrames( ){
+		// if(this.PX===0&&this.PY===0&&this.closed===true)this.newPage(i,list);
 		// console.log(fn );
 		// if(fn  ==='K.S.20.1480')
 		// console.log(fn );
-		let cw = pngIMG.width, ch = pngIMG.height, 
-		cx=0, cy=0, 
-		scale = PAGE.styles.scale, newLine = false; 
-		if(this.sizes[fn])[scale=scale,cx=cx,cy=cy,cw=cw,ch= ch] = this.sizes[fn];
-		if(typeof scale === 'object')scale=~~(H/scale[1]); 
-		let iw = cw/scale, ih = ch/scale;
-		let m = PROJECT.styles.FRAME.margin, x,y, b = 5;
-		 
-		let CW=iw+m*2, 
-		mH=(~~m*1.5)+ (PROJECT.styles.FRAME.padding || 0),//Погрешность;
-		CH = ih+mH;
+		// let newLine = false; 
+
+		var pmatrix = this.pmatrix;
+		var list = this.framesInPage;
+		
+		var i = pmatrix.length;
+		var itemData = list[i]; 
+		if(!itemData){ 
+			if(PAGE.currentFrame>0)this.closePage();
+			this.newPage(true);
+			PAGE.updPageList();
+			i = 0;
+			itemData = list[i]; 
+		}
+
+		var name = itemData.name,
+			scale = itemData.scale,
+			scaled_Width = itemData.scaled_Width,
+			scaled_Height = itemData.scaled_Height,
+			placeWidth = itemData.placeWidth,  
+			placeHeight = itemData.placeHeight,
+			file_Width = itemData.file_Width,
+			file_Height = itemData.file_Height,
+			cx = itemData.cx,
+			cy = itemData.cy,
+			pngIMG = itemData.pngIMG,
+			svgIMG = itemData.svgIMG
+ 
+		let mg = PAGE.styles.frameMargin;
+		let x,y; 
 		
 		/*
 		Искать куда поместится
 		
 		*/
-		if(this.spec[fn]){// спецпозиций  
-			console.log(this.spec[fn]);
-			({x,y} = this.spec[fn]);
-			if(typeof x === 'string')x=this.PX+m+(~~x);if(x<0)x=this.PX+m+x;
-			if(typeof y === 'string')y=this.PY+m+(~~y);if(y<0)y=this.PY+m+y;
+		if(this.spec[name]){// спецпозиций  
+			console.log(this.spec[name]);
+			({x,y} = this.spec[name]);
+			if(typeof x === 'string')x=this.PX+mg+(~~x);if(x<0)x=this.PX+mg+x;
+			if(typeof y === 'string')y=this.PY+mg+(~~y);if(y<0)y=this.PY+mg+y;
 		}if(this.pmatrix.length === 0){
-			x = m; y=m;
-			this.PX+=CW;
+			x = mg; y=mg;
+			this.PX+=placeWidth; 
+
 		} else{//Прочие  
-			let use = true, j,pmatrix = this.pmatrix, pm;
-			let l = pmatrix.length, maxX = this.width-iw, maxY = this.height-ih - mH;
-			if(fn === 'K.S.23.0460')
-				console.log(fn);
+			let use = true, j;
+			let l = pmatrix.length, 
+				maxX = PAGE.styles.maxX-scaled_Width, 
+				maxY = PAGE.styles.maxY-scaled_Height;
+			if(name === 'K.S.23.0460')
+				console.log(name);
 				var minY;// Минимальный y - чтобы не перебирать заведомо занятые значения
 			//Проверить отступы
-			yloop:for(y = m; y<=maxY;y++){
-				for(x = m; x<=maxX;x++){
+				var y0 = PAGE.styles.minY;
+				// Если следующий кадр по высоте - больше - переводим на новую строку
+				if(!this.hasSpec && i>0 && i < list.length-1){//Если - не первый и не последний, и на странице нет "специальных"
+					let _next, bigIndex, MaxH = 0.9*PAGE.placeBox.height;
+					// Временный
+					_next = list[i+1], _prev = list[i-1];
+					if( 
+						_prev.placeHeight <= placeHeight &&
+							(
+							(list[i+1].placeHeight > placeHeight) || (list[i+2]&&list[i+2].placeHeight > placeHeight)&& _prev.placeHeight <= placeHeight 
+						)
+					){
+						y0+=_prev.placeHeight;
+					}
+
+
+					// for(j = $i+1; j< framesInPage.length; j++){
+					// 	if( framesInPage[j].placeHeight >= MaxH ){
+							
+					// 	}
+					// }
+					// let _next = framesInPage[$i+1], _prev = framesInPage[0];
+					//  if( 
+					// 	_next.placeHeight > placeHeight
+					// 	&& y0 + _next.placeHeight + placeHeight > PAGE.styles.maxY&&
+					// 	_prev.placeHeight 
+					// 	){
+					// 	y0 = 
+					//  } 
+					// let hasBiggest = false;
+					// for(j = $i; j< framesInPage.length; j++){
+					// 	if(framesInPage)
+					// }
+				}
+
+			let xp0, xp1, yp0, yp1; 
+			let x1,y1;
+			
+			yloop:for(y = y0; y<=maxY;y++){
+				y1 = y+placeHeight;
+				for(x = mg; x<=maxX;x++){
+					x1 = x+placeWidth;
 					use = true;
-					for(j= 0; j<l; j++){  
-						pm = pmatrix[j];
+					for(j= 0; j<l; j++){   
+						[xp0, xp1, yp0, yp1] = pmatrix[j];
 						if(
-							( x >= pm[0] && x <= pm[1] || (x+CW) > pm[0] && (x+CW) <= pm[1]  )&&( y >= pm[2]&&y <= pm[3] || (y + CH) >= pm[2]&&(y + CH) <= pm[3] ) ||	
-							x <= pm[0] && (x+CW) >= pm[1] && y <= pm[2] && (y+CH) > pm[3] 
+							( x >= xp0 && x <= xp1 || x1 > xp0 && x1 <= xp1 )
+							&&( y >= yp0 && y <= yp1 || y1 >= yp0 && y1 <= yp1 ) 
+							||	
+							( x <= xp0 && x1 >= xp1 && y <= yp0 && y1 > yp1 )
 						){
 							use =  false;
-							x=pm[1];
-							minY = typeof minY === "undefined" || minY > pm[3] ? pm[3] : minY;
+							x=xp1;
+							minY = typeof minY === "undefined" || minY > yp1 ? yp1 : minY;
 							break;
 							
 						}
@@ -321,69 +441,39 @@ PAGE = {
 				minY = undefined;
 			}
 
-			// console.log(pmatrix)
-			// x=this.PX+m; 
-			// y=this.PY+m;
-			// this.PX+=CW;
+			// console.log(pmatrix) 
 			if(use === false){//позиция+ширина+отступы больше ширины стр 
-				// this.PY+=this.ih+mH;
-				// this.PY+=CH;
-				// this.ih=0;  
-				// if(this.PY+ CH >this.height){
-					this.closePage().newPage(); x=m; y=m;
-				// }else{
-				// 	y=this.PY+m;
-				// 	newLine = true;
-				// } 
-				// this.PX = CW; 
-				// x=m;				
-				// console.log(fn,this.PY,mH,this.height);
-				
-			}
-			// this.ih = Math.max(this.ih,ih);//Кеширование высоты. max - пока не нужна (задел для алгоритма нестандартных версток)
-			//x=this.PX+m; y=this.PY+m;//let x=25+(iw+50)*this.PX, y=25+(ih+50)*this.PY;
+				this.closePage().newPage(true);  PAGE.updPageList();
+				x=mg; y=mg;
+			} 
 			
 		} 
-		this.pmatrix.push([x,x+CW-1,y,y+CH-1]);
+		this.pmatrix.push([x,x+placeWidth-1,y,y+placeHeight-1]);
 		//let ctx = this.ctx; 
-		let arg = [cx, cy,cw,ch,x+b,y+b,iw-b*2,ih-b*2];
+		let b = 5;
+		let arg = [cx, cy,file_Width,file_Height,x+b,y+b,scaled_Width-b*2,scaled_Height-b*2];
 		console.log(arg)
 		this.ctx.drawImage(pngIMG, ...arg); 
 		// console.log(this.ctx.getImageData(cx, cy,1,1))
 		if(svgIMG)this.ctx.drawImage(svgIMG, ...arg); 
 
 		if(PROJECT.styles.FRAME.border){
-			this.ctx.rect(x,y,iw,ih);
+			this.ctx.rect(x,y,scaled_Width,scaled_Height);
 			this.ctx.stroke();
 
         } 
+		this.framesList.push({name:name, framePos : [x,y,scaled_Width,scaled_Height], imgPos: arg, img: pngIMG, imgFile: itemData.imgFile})
 		
-		item[1].framePos = [x,y,iw,ih]
-		item[1].imgPos = arg
-		this.framesList.push({name:fn, newLine : newLine, framePos : [x,y,iw,ih], imgPos: arg, img: pngIMG, imgFile: item[1].imgFile})
-		
-		this.frame++; this.stat.frames++;
-		//if(!this.spec[fn])this.PX+=iw+m*2;
-		/*Перенести в начало: определяет положение при постановке; либо getSize() */
-		/*let mW = 0, mH =0;
-		if(list[i+1]){//Размер следующего кадра
-			let n = list[i+1]; 
-			if(this.spec[n[0]])return;//Если след. имеет спец позиционирование - переход не происходит (чтобы их можно было размещать произвольно
-			if(this.sizes[n[0]]){
-				mW=this.sizes[n[0]][0];mH=this.sizes[n[0]][1];
-			}else{ 
-				mW = n[1].width/scale;mH = n[1].height/scale;
-			} 
-			
-		} 
-		if(!this.spec[fn])this.ih=ih;
-		if(this.PX>this.width-mW){
-			this.PX=0; this.PY+=this.ih+(~~m*1.5);
-			if(COMIX === 'VNII')this.PY+=3;//Погрешность
-			
-			if(this.PY>this.height-mH){ this.PY=0; this.closePage(); }
-		}*/
+		PAGE.currentFrame += 1;
+		this.frame++; this.stat.frames++; 
+
+
+		if(PAGE.currentFrame < PROJECT.list.length)
+			PAGE.setFrames( );
+		else
+			PAGE.closePage();
 	},
+	
 	ih : 0, 
 	
 	appendPage(){ 
@@ -522,8 +612,7 @@ PAGE = {
 				content : cont,
 				scale : scale,
 				svg : svg
-			}
-			// if(frm.newLine)frm_str += `</tr><tr>`;
+			} 
 			
 			// fra.innerHTML = `<input class='h3' readonly value="${frm.name}" /><textarea class="content">${texts}</textarea>`;
 			// TODO: btn{download: frm.name + (PAGE.lang === 'en' ? '_en' : '') +'.svg'};
@@ -647,8 +736,24 @@ PAGE = {
 		img.src = 	PROJECT.dataDir + "/template/" + url;
 	},
 	setList(){ 
-		PROJECT.list.forEach(PAGE.setFrame,PAGE);
-		if(PAGE.closed === false)PAGE.closePage();
+		let mg = PROJECT.styles.FRAME.margin;
+		PAGE.styles.frameMargin = mg; 
+		PAGE.styles.frameMarginVert = (~~mg*1.5)+ (PROJECT.styles.FRAME.padding || 0),//Погрешность;; 
+		PAGE.styles.minX = mg;
+		PAGE.styles.minY = mg;
+		PAGE.styles.maxX = this.width-mg;
+		PAGE.styles.maxY = this.height-PAGE.styles.frameMarginVert;
+		PAGE.placeBox = {
+			x : mg,
+			y: mg,
+			width : this.width - 2*mg,
+			height : this.height-PAGE.styles.frameMarginVert - mg,
+		}
+		PAGE.placeSq = (PAGE.styles.maxX - PAGE.styles.minX)*(PAGE.styles.maxY - PAGE.styles.minY);//Площадь пространства
+		PAGE.currentFrame = 0;
+		PAGE.setFrames( );
+		// PROJECT.list.forEach(PAGE.setFrames,PAGE);
+		// if(PAGE.closed === false)PAGE.closePage();
 		let st = document.createElement('div');
 
 		st.id = "footer";

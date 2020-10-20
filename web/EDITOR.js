@@ -1,5 +1,6 @@
 EDITOR = {
     DOMParser :  new DOMParser(),
+    FramesData : new Map(),
     ui : {
         input : {}
     },
@@ -113,6 +114,7 @@ EDITOR = {
         EDITOR.setBTN('divtotext',{disabled: true},'dt');
         EDITOR.setBTN('saveBtn_click',{}, 'S');
         EDITOR.setBTN('repair',{}, 'Rp');
+        EDITOR.setBTN('reloadImg',{}, 'Rl');
         addEventListener('FrameClick',ev=>{
             dQ('.btn[data-action="divtotext"]').toggleAttribute('disabled', EDITOR.current.active.tagName !== 'DIV');
         })
@@ -120,14 +122,38 @@ EDITOR = {
             parentNode: EDITOR.sidebar,
             id : 'console', 
         });
+        EDITOR.ui.console.addEventListener('change',EDITOR.consoleInput)
+        EDITOR.ui.console.addEventListener('input',EDITOR.consoleInput)
+        EDITOR.ui.console.addEventListener('paste',EDITOR.consoleInput)
     },
     console(type,data){
+        EDITOR.current.consoleNode = data;
         switch(type){
             case 'text':
-                // if(data.tagName === 'd')
-                EDITOR.ui.console.value = data.innerHTML.replace(/((<\/tspan>)|(<br[\/]{0,1}>))/gi,'\n').replace(/(<[^>]+>)/g,'')
+                if(data.tagName === 'text')
+                
+                    EDITOR.ui.console.value = Array.prototype.map.call(data.children, span => span.textContent ).join('\n');
+                else
+                    EDITOR.ui.console.value = data.innerHTML.replace(/((<\/tspan>)|(<br[\/]{0,1}>))/gi,'\n').replace(/(<[^>]+>)/g,'')
             break;
         }
+    },
+    consoleInput(ev){
+        var cur = EDITOR.current.consoleNode,
+        v = EDITOR.ui.console.value;;
+        if(cur && cur.tagName === 'text'){
+            var x = +cur.getAttribute('x');
+                    var y = +cur.getAttribute('y');
+                    var fontSize = parseInt(getComputedStyle(cur).fontSize) || PROJECT.styles.FRAME.fontSize; 
+                    var lh = fontSize * PAGE.styles.lineHeight; 
+                    console.log(lh,fontSize)
+                    v = v.split(/\n/);
+                    var i = 0, ch = cur.children;
+                    for(;i<v.length; i++)
+                        if(ch[i])ch[i].textContent = v[i];
+                        else SVG('tspan',{parentNode:cur,x :x,y:y+i*lh,textContent:v[i]});
+                    for(;i<ch.length; i++)ch[i].remove();
+        } 
     },
     createSVG(d){
         let stroke = 3;
@@ -161,7 +187,8 @@ EDITOR = {
 		</svg>`; 
         if(d.name === 'K.S.19.0840')console.log(true)
 		var svgBox = DIV({className:'svgBox', dataset:{name:d.name}},svg);
-		svg = svgBox.firstChild;
+        svg = svgBox.firstChild;
+        EDITOR.FramesData.set(svg,d);
 		var foreignObject = SVG('foreignObject',{x :0,y:0,width:d.W,height:d.H, parentNode:svg}  );
 		var scale = 1;
 		d.texts.forEach(t=>{ 
@@ -735,7 +762,7 @@ EDITOR = {
                 })
                 EDITOR.buffer = [];
                 EDITOR.changeFrame(svg);
-            }       
+            } 
         },
         // div => text
         divtotext(){ 
@@ -807,7 +834,16 @@ EDITOR = {
                 })
                 
             });
-        }
+        },
+        reloadImg(){
+            var svg = EDITOR.current.svg;
+            var d = EDITOR.FramesData.get(svg);
+            var img = svg.querySelector('image');
+            var NS = 'http://www.w3.org/1999/xlink';
+            // var name =  EDITOR.current.name;
+            // var frm = (PAGE.framesData[name] || {data:{imgFile:name+'.png'}}).data;
+            img.setAttributeNS(NS,'href',d.img + '?v='+Date.now() );  
+        }  
        
     },
     setCurrentNode(cur){

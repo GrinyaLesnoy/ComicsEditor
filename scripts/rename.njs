@@ -125,16 +125,21 @@ move : function(options){//start,end,step,s=10
 		
 		nums = Object.values(nums);
 		nums.sort((a,b)=>a>b?1:-1);
+
+		if(to_abs){
+			to = to_abs - nums[0];
+		}else{ 
+			to_abs = Math.ceil((nums[0]+to)/10)*10;// Из относительного в абсолютное
+		}
  
-		to_abs = to_abs ||  Math.ceil((nums[0]+to)/10)*10;// Из относительного в абсолютное
 		;  
 		// infoLog(`move ${nums}`);
 		infoLog(`move ${start} , ${to_abs}`); 
-		dict = nums.map(num=>{ 
-			if(step>0)while(to_abs<=num)to_abs+=step;
-			else if(step<0)while(to_abs>=num)to_abs+=step; 
-			let new_num = to_abs; //
-			to_abs+=step;
+		dict = nums.map((num, i)=>{ 
+			// if(step>0)while(to_abs<=num)to_abs+=step;
+			// else if(step<0)while(to_abs>=num)to_abs+=step; 
+			let new_num = to_abs + i*step; //
+			// to_abs+=step;
 			return [num,new_num];
 		});   
 
@@ -145,7 +150,8 @@ move : function(options){//start,end,step,s=10
 	}
 	// return
 	// infoLog(`move ${dict}`);
-		// console.log( dict) 
+		console.log( dict) 
+		// return;
 		// errorLog( JSON.stringify(dict) )
 		for(let d of dict){
 			let [from,to] = d; 
