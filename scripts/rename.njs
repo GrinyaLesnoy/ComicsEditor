@@ -1,4 +1,5 @@
 var fs = require('fs');
+const { tmpdir } = require('os');
 var path = require('path');
 let dir = (process.argv[2]||__dirname).replace(/\\/g,'/');
 
@@ -103,6 +104,15 @@ DO = {
 // {start:N, count: M} {start:N, to: M}  ({start, end,to,step})
 move : function(options){//start,end,step,s=10
 	var files = fs.readdirSync(dir), dict=[]; 
+	var $tmpDir = dir+'/$tmp';
+	if(!fs.existsSync($tmpDir)){
+		fs.mkdirSync($tmpDir);
+	}else if(fs.readdirSync($tmpDir).length > 0){
+		errorLog('clean temp dir!');
+		return;
+	}
+	$tmpDir += '/';
+
 	let reg = new RegExp(project.fileNumMask); 
 	if(Array.isArray(options) && Array.isArray(options[0]))dict = options;// [[from,to]]
 	else if(Array.isArray(options) || ('start' in options)){//[start,end,to,step=10] || {start : ...,}
@@ -125,7 +135,7 @@ move : function(options){//start,end,step,s=10
 		
 		nums = Object.values(nums);
 		nums.sort((a,b)=>a>b?1:-1);
-
+		// console.log(nums)
 		if(to_abs){
 			to = to_abs - nums[0];
 		}else{ 
@@ -143,17 +153,21 @@ move : function(options){//start,end,step,s=10
 			return [num,new_num];
 		});   
 
-		if(to>0)dict.sort((a,b)=>b[0]>a[0] ? 1 : -1);  //если назад - от первого к последнему
+		// if(to>0)dict.sort((a,b)=>b[0]>a[0] ? 1 : -1);  //если назад - от первого к последнему
 		 
 	}else{ //{from:to}
 		for(let from in options)dict.push([from, options[from]]);
 	}
 	// return
 	// infoLog(`move ${dict}`);
-		console.log( dict) 
+		// console.log( dict,) 
 		// return;
-		// errorLog( JSON.stringify(dict) )
+		// errorLog( JSON.stringify(dict) ); 
+	
+		fs.writeFile('lastRenameList.json',  JSON.stringify(dict,null,'\t') , (err)=>{if(err)return console.log(err);}); 
+
 		for(let d of dict){
+			//$tmpDir
 			let [from,to] = d; 
 			from = from+''; 
 			if(MIN>from.length)from ='0'.repeat(MIN-from.length)+from; 
@@ -165,81 +179,89 @@ move : function(options){//start,end,step,s=10
 
 			from = new RegExp(from);
 			let new_list = list.map(f=>f.replace(from,to)); 
-			let zanyat =  new_list.find(f=> fs.existsSync(dir+f));
-			if( !zanyat ){//Не повторяется вся группа (иначе возникает чехарда)
-				if(list.find((f,i) => {
+			if(
+				list.find((f,i) => {
 					// return true;
 					let nf = new_list[i];
-					if (!fs.existsSync(dir + nf)) { 
-						fs.renameSync(dir+f, dir+nf) 
-						infoLog(`rename ${f} => ${nf}` );   
-					}else{ 
-						errorLog('err '+ f + ' => '+ nf); 
-						return true;
-					}
-
-
-					// rename({
-					// 	f_old:f,
-					// 	f_new:new_list[i],
-					// 	Name_old:PREF_ +  from,
-					// 	Name_new:PREF_ +  to
-					// });
-				})){
-					break;
-				}
-			}else{
-				errorLog('err '+ from + ' => '+ to + ' : ' + zanyat );  
-				break;
+					if(fs.existsSync($tmpDir+nf))return true; //Мало ли, какая херня
+					fs.renameSync(dir+f, $tmpDir+nf);
+				})
+			){
+				errorLog('err '+ from + ' => '+ to + ' in $tmp ' ); 
+				return;
 			}
+
 		}
+		files = fs.readdirSync(dir);
+		var tmpFiles = fs.readdirSync($tmpDir);
+		//Проверка, нет ли занятых имён
+		var zanyat = tmpFiles.find( f=> fs.existsSync(dir+f) );
+		if(zanyat){
+			errorLog('err   : ' + zanyat ); 
+			return;
+		}
+		tmpFiles.forEach((f,i)=>{
+			fs.renameSync($tmpDir+f, dir+f);
+			// infoLog($tmpDir+f + ' - ' + dir+f);
+		});
+		// for(let d of dict){
+		// 	let [from,to] = d; 
+		// 	from = from+''; 
+		// 	if(MIN>from.length)from ='0'.repeat(MIN-from.length)+from; 
+		// 	to = to+'';
+		// 	if(MIN>to.length)to ='0'.repeat(MIN-to.length)+to; 
+
+		// 	reg = new RegExp('(^(' + PREF_ +  from + ')((_en)|~){0,1}\.\[a-z~]+$)')
+		// 	let list = files.filter(f=>reg.test(f));  
+
+		// 	from = new RegExp(from);
+		// 	let new_list = list.map(f=>f.replace(from,to)); 
+		// 	let zanyat =  new_list.find(f=> fs.existsSync(dir+f));
+		// 	if( !zanyat ){//Не повторяется вся группа (иначе возникает чехарда)
+		// 		if(list.find((f,i) => {
+		// 			// return true;
+		// 			let nf = new_list[i];
+		// 			if (!fs.existsSync(dir + nf)) { 
+		// 				fs.renameSync(dir+f, dir+nf) 
+		// 				infoLog(`rename ${f} => ${nf}` );   
+		// 			}else{ 
+		// 				errorLog('err '+ f + ' => '+ nf); 
+		// 				return true;
+		// 			}
+
+
+		// 			// rename({
+		// 			// 	f_old:f,
+		// 			// 	f_new:new_list[i],
+		// 			// 	Name_old:PREF_ +  from,
+		// 			// 	Name_new:PREF_ +  to
+		// 			// });
+		// 		})){
+		// 			break;
+		// 		}
+		// 	}else{
+		// 		errorLog('err '+ from + ' => '+ to + ' : ' + zanyat );  
+		// 		break;
+		// 	}
+		// }
  
 	 
 	cb()
 },  
 exchange(options){
-	var files = fs.readdirSync(dir), dict=[]; 
-	let reg = new RegExp(project.fileNumMask); 
-	for(let from in options){
-
-		dict.push([from, options[from]]);
-	}
-		for(let d of dict){
-			let [from,to] = d;
-			from = from+''; 
-			if(MIN>from.length)from ='0'.repeat(MIN-from.length)+from; 
-			to = to+'';
-			if(MIN>to.length)to ='0'.repeat(MIN-to.length)+to; 
-
-			reg = new RegExp('(^(' + PREF_ +  from + ')((_en)|~){0,1}\.\[a-z~]+$)')
-			let list = files.filter(f=>reg.test(f));  
-
-			from = new RegExp(from);
-			let new_list = list.map(f=>f.replace(from,to)); 
-			if( !new_list.find(f=> fs.existsSync(dir+f)) ){//Не повторяется вся группа (иначе возникает чехарда)
-				list.forEach((f,i) => {
-					rename({
-						f_old:new_list[i],
-						f_new:f+'___tmp',
-						Name_old:PREF_ +  from,
-						Name_new:PREF_ +  to+'___tmp'
-					});
-					rename({
-						f_old:f,
-						f_new:new_list[i],
-						Name_old:PREF_ +  from,
-						Name_new:PREF_ +  to
-					});
-					rename({
-						f_old:f+'___tmp',
-						f_new:f,
-						Name_old:PREF_ +  to,
-						Name_new:PREF_ +  from+'___tmp'
-					});
-				})
-			}
+	 if(options instanceof Array){
+		for (let item of options){
+			// TODO: njs event ?..
 		}
-
+	 }else{
+		var opt = {}
+		for (let from in options){
+			let to = options[from];
+			opt[from] = to;
+			opt[to] = from;
+		}
+		DO.move(opt)
+	 }
 },
 // Создаие новых кадров (аналог move : [Num1,Num2,Num3...] или {start,count,end,step} )
 create : function(o){infoLog(`create`); 

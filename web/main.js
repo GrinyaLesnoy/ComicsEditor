@@ -81,7 +81,7 @@ document.addEventListener("DOMContentLoaded", ()=>{
 			
 		`; 
 
-		CreateElement('link',{rel:"stylesheet",href: TEMPLATEDIR + 'styles.css',parentNode:document.head})
+		CreateElement('link',{rel:"stylesheet",href: TEMPLATEDIR + 'css/styles.css',parentNode:document.head})
  
 
 		if(~location.href.split('/').pop().indexOf('en'))PAGE.lang='en';

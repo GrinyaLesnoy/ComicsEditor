@@ -15,8 +15,8 @@ PAGE = {
 					SPAN({className:'title'},name),
 					info
 				]);
-				loadScript([Scenes[s]+'/SceneDATA.js'],function(){
-					im.src=name + '/'+ DATA.list[0][2];
+				loadScript([PROJECT.scenesDir+'/'+Scenes[s]+'/SceneDATA.js'],function(){
+					im.src= PROJECT.scenesDir+'/'+ name + '/'+ DATA.list[0][2];
 					if(DATA.scene.titlePage){
 						DIV({parentNode:info},'Глава ' + DATA.scene.titlePage.chapter)
 					}
@@ -171,23 +171,31 @@ PAGE = {
 	width:1800, 
 	height:1260,
 	pmatrix : [],
-	newPage( ){
+	setCanvas(){
 		var canvas = document.createElement('canvas');
 		canvas.width=this.width;canvas.height=this.height;
 		let ctx = this.ctx = canvas.getContext("2d");
-		this.PX =0;
-		this.PY = 0;
-		this.ih=0;
+		
 		this.pmatrix.length = 0;
 		this.closed=false;
 		ctx.rect(0,0,canvas.width,canvas.height);
 		ctx.fillStyle = '#000';
 		ctx.fill();
 		if(this.BG)ctx.drawImage(this.BG,0,0  );
+	},
+	newPage( ){
+		this.pageData = {
+			page : this.page,
+			frames : []
+		}
+		// this.PX =0;
+		// this.PY = 0;
+		// this.ih=0;
+		this.setCanvas();
 		this.framesList.length = 0;
 		this.framesInPage.length = 0;
-		this.cols = 0;
-		this.rows = 0; 
+		// this.cols = 0;
+		// this.rows = 0; 
 		// this.placeSum
 		console.log('NewPage');
 		return this;
@@ -235,7 +243,8 @@ PAGE = {
 				cy : cy,
 				pngIMG : pngIMG,
 				svgIMG : svgIMG,
-				imgFile : item[1].imgFile
+				imgFile : item[1].imgFile,
+				path : path
 			})	
 		}
 		return this.framesInPage;
@@ -359,8 +368,8 @@ PAGE = {
 		if(this.spec[name]){// спецпозиций  
 			console.log(this.spec[name]);
 			({x,y} = this.spec[name]);
-			if(typeof x === 'string')x=this.PX+mg+(~~x);if(x<0)x=this.PX+mg+x;
-			if(typeof y === 'string')y=this.PY+mg+(~~y);if(y<0)y=this.PY+mg+y;
+			if(typeof x === 'string')x= mg+(~~x);if(x<0)x= mg+x;
+			if(typeof y === 'string')y= mg+(~~y);if(y<0)y= mg+y;
 		}if(this.pmatrix.length === 0){
 			x = mg; y=mg;
 			this.PX+=placeWidth; 
@@ -452,18 +461,28 @@ PAGE = {
 		//let ctx = this.ctx; 
 		let b = 5;
 		let arg = [cx, cy,file_Width,file_Height,x+b,y+b,scaled_Width-b*2,scaled_Height-b*2];
-		console.log(arg)
-		this.ctx.drawImage(pngIMG, ...arg); 
-		// console.log(this.ctx.getImageData(cx, cy,1,1))
-		if(svgIMG)this.ctx.drawImage(svgIMG, ...arg); 
+		console.log(arg);
 
-		if(PROJECT.styles.FRAME.border){
-			this.ctx.rect(x,y,scaled_Width,scaled_Height);
-			this.ctx.stroke();
+		var ctxData = {
+			pngIMG : pngIMG,
+			svgIMG : svgIMG,
+			arg : arg,
+			border : PROJECT.styles.FRAME.border && [x,y,scaled_Width,scaled_Height]
+		}; 
+		this.setCTXFrame(ctxData);
 
-        } 
-		this.framesList.push({name:name, framePos : [x,y,scaled_Width,scaled_Height], imgPos: arg, img: pngIMG, imgFile: itemData.imgFile})
+		this.framesList.push({
+			name:name, 
+			framePos : [x,y,scaled_Width,scaled_Height], 
+			imgPos: arg, 
+			img: pngIMG, 
+			imgFile: itemData.imgFile,
+			ctxData : ctxData,
+			path : itemData.path
+		});
 		
+		this.pageData.frames.push(name);
+
 		PAGE.currentFrame += 1;
 		this.frame++; this.stat.frames++; 
 
@@ -472,6 +491,18 @@ PAGE = {
 			PAGE.setFrames( );
 		else
 			PAGE.closePage();
+	},
+
+	setCTXFrame : function(ctxData){
+		this.ctx.drawImage(ctxData.pngIMG, ...ctxData.arg); 
+		// console.log(this.ctx.getImageData(cx, cy,1,1))
+		if(ctxData.svgIMG)this.ctx.drawImage(ctxData.svgIMG, ...ctxData.arg); 
+
+		if(PROJECT.styles.FRAME.border){
+			this.ctx.rect(...ctxData.border);
+			this.ctx.stroke();
+
+        } 
 	},
 	
 	ih : 0, 
@@ -611,7 +642,8 @@ PAGE = {
 				block : fra,
 				content : cont,
 				scale : scale,
-				svg : svg
+				svg : svg,
+				ctxData : frm.ctxData
 			} 
 			
 			// fra.innerHTML = `<input class='h3' readonly value="${frm.name}" /><textarea class="content">${texts}</textarea>`;
@@ -623,16 +655,83 @@ PAGE = {
 		
 		var pageData = DIV({className:'pageData'},fr);
 
-		pageData.addEventListener('click',EDITOR.actions.Frame_click)
+		pageData.addEventListener('click',EDITOR.actions.Frame_click);
+
+		var reloadBtn;
+
+		if(this.pageData){
+			//this.pageData
+			// this.ctx.canvas
+			reloadBtn = SPAN({className:'reloadBtn btn' },'R');
+			GlobalData.set(reloadBtn,'data',this.pageData);
+			reloadBtn.addEventListener('click',function(){
+				var reloadBtn = this;
+				var pageData = GlobalData.get(reloadBtn,'data' );
+				console.log(pageData);
+				PAGE.createPageFromData(pageData,ctx => {
+					var box = reloadBtn.closest('.page-block');
+					var c = box.querySelector('canvas');
+					if(c){
+
+						c.after(ctx.canvas);
+						c.remove();
+					}else{
+						box.insertBefore(ctx.canvas,box.firstElementChild);
+					}
+				})
+			})
+		}
 		 
 		var pageBox = DIV({className:'page-box', parentNode:PAGE.container},[
-			DIV({className:'page-block'},this.ctx.canvas),
+			DIV({className:'page-block'},[this.ctx.canvas,DIV(reloadBtn)]),
 			DIV({className:'page-block'},pageData)
 		]);   
 
 		this.page++;this.closed=true;
 	},
-	closePage(){
+	createPageFromData(pageData, callback){
+		this.setCanvas();
+		
+		var i = 0, name = pageData.frames[i], d,
+		ln = PAGE.lang,
+			onLoad = function(){
+				PAGE.setCTXFrame(d.ctxData);
+			i++;
+			name = pageData.frames[i];
+			if(name)f();
+			else{
+				PAGE.setPageFooter(pageData.page);
+				callback ( PAGE.ctx );
+			}
+		};
+		var f = ( )=>{  
+			d = PAGE.framesData[name].data;
+			let PNGI= new Image(); 
+			PNGI.onload = function(){
+
+				d.ctxData.pngIMG = this;
+				d.ctxData.svgIMG = false;
+				let sn = d.path+name;
+				let SVGI = new Image(); 
+				SVGI.onload = function(){//svg теперь не обязательный, поскольку планируется экспортировать из браузера, где необходим
+					 d.ctxData.svgIMG = this; onLoad();
+				}; 
+				SVGI.onerror = onLoad; 
+				SVGI.src = sn+(ln === 'en'?'_en':'')+'.svg?v='+Date.now(); 
+
+
+			};
+			PNGI.onerror = function(){
+				
+				}; 
+			PNGI.src =d.path+d.imgFile + '?v='+Date.now(); 
+			
+		} 
+
+		f();
+		return this.ctx;
+	},
+	setPageFooter( page ){
 		let ctx = this.ctx, setImage = this.setImage;
 		ctx.beginPath();
 		ctx.moveTo(25,1194);
@@ -651,7 +750,7 @@ PAGE = {
 				ctx.textBaseline="hanging";
 				ctx.font = "700 35px Ubuntu";
 				ctx.fillStyle = '#999';
-				ctx.fillText(`${this.page}`,8,Y+1); 
+				ctx.fillText(`${page}`,8,Y+1); 
 				ctx.font = "900 17px Ubuntu"; 
 				ctx.textAlign="center"; 
 				Y = 1073;
@@ -679,7 +778,7 @@ PAGE = {
 				let footerFont = PAGE.getFontString('footer');
 				ctx.font = footerFont;
 				ctx.fillStyle = PROJECT.styles.fillStyle;
-				ctx.fillText(`Стр. ${this.page}`,25,Y); 
+				ctx.fillText(`Стр. ${page}`,25,Y); 
 				setImage('CC-BY-SA-Andere_Wikis_(v).svg',[402,1207,117,39]);
 				ctx.fillText('CC BY-SA',402+132,Y); 
 				X = 402+132+170;
@@ -698,6 +797,9 @@ PAGE = {
 				ctx.fillText('Гриня Лесной   •   Skazochnik.ORG  | VNII.SU',1136.0,Y); 		
 			break;
 		}  
+	},
+	closePage(){
+		this.setPageFooter( this.page );
 		
 		this.appendPage();
 		this.stat.pages++;

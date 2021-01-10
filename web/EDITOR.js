@@ -25,14 +25,8 @@ EDITOR = {
             if(ev.target.classList.contains('toggler')){
                 e.classList.toggle("opened")
             }else if(ev.target.classList.contains('content')||ev.target.classList.contains('nodeItem')){
-                outer.querySelectorAll(".nodeItem.selected,.nodeItem.hasSelected").forEach(function(e){
-                    e.classList.remove("selected","hasSelected")
-                });
-                e.classList.add("selected");
-                var cur = e.svgNode
-                while(e = e.parentNode.closest("#SVGTree .nodeItem")){
-                    e.classList.add("hasSelected","opened");
-                }
+                var cur = e.svgNode;
+                EDITOR.selectTreeItem(e);
  
                 EDITOR.setCurrentNode(cur);
                 // EDITOR.current.treeNodeItem = e;
@@ -50,7 +44,7 @@ EDITOR = {
         EDITOR.ui.input.prop.addEventListener('change',function(){
             switch(this.value){
                 case 'style': 
-                    EDITOR.ui.input.item.value = EDITOR.current.node.style.cssText; 
+                    EDITOR.ui.input.item.value = EDITOR.current.node.style.cssText.replace(/;\s*/g,';\n'); 
                 break;
                 case 'textContent': 
                     EDITOR.ui.input.item.value = EDITOR.current.node.textContent; 
@@ -69,7 +63,7 @@ EDITOR = {
             v = ev.target.value;
             switch(prop){
                 case 'style':
-                    cur.style.cssText = v
+                    cur.style.cssText = v.replace(/[\n|\r]/g,' '); 
 
                 break;
                 case 'textContent':
@@ -114,7 +108,7 @@ EDITOR = {
         EDITOR.setBTN('divtotext',{disabled: true},'dt');
         EDITOR.setBTN('saveBtn_click',{}, 'S');
         EDITOR.setBTN('repair',{}, 'Rp');
-        EDITOR.setBTN('reloadImg',{}, 'Rl');
+        EDITOR.setBTN('reloadImg',{ dataset:{titles  : String.fromCharCode( '\f2f1' ) }, textContentw:String.fromCharCode( '\f2f1' )  } ,'Rl');//'&#xf01e'
         addEventListener('FrameClick',ev=>{
             dQ('.btn[data-action="divtotext"]').toggleAttribute('disabled', EDITOR.current.active.tagName !== 'DIV');
         })
@@ -125,6 +119,26 @@ EDITOR = {
         EDITOR.ui.console.addEventListener('change',EDITOR.consoleInput)
         EDITOR.ui.console.addEventListener('input',EDITOR.consoleInput)
         EDITOR.ui.console.addEventListener('paste',EDITOR.consoleInput)
+
+        document.addEventListener('keydown',function(ev){
+            var prevent = false;
+            if(ev.ctrlKey === true  
+                && ev.code !== "ControlLeft"//Для дебага - иначе срабатывает сам на себя
+            
+            ){
+                switch(ev.code){
+                    case 'KeyP'://key === 'p', code = 'keyP'
+                        prevent = true;
+                        var e = EDITOR.current.node.parentNode;
+                        EDITOR.selectTreeItem(e);
+                        EDITOR.setCurrentNode(e);
+                    break;
+                }
+            }
+            if(prevent === true){
+                ev.preventDefault();
+            }
+        })
     },
     console(type,data){
         EDITOR.current.consoleNode = data;
@@ -854,8 +868,8 @@ EDITOR = {
         switch(cur.nodeType){
             case 1: 
                 if(last === cur)return;
-                if(cur.tagName === 'text')props.push('setContent');
                 props.push('style');
+                if(cur.tagName === 'text')props.push('setContent');
                 if(cur.tagName === 'tspan')props.push('textContent');
                 var A = cur.attributes;
                 for(let i=0; i<A.length;i++)if(A[i].name!=='style')props.push(A[i].name);
@@ -876,6 +890,18 @@ EDITOR = {
         EDITOR.ui.input.prop.value = props[0];
         EDITOR.ui.input.prop.dispatchEvent(new CustomEvent("change",{bubbles:true}));
         if(textElem && EDITOR.current.active!==textElem)curElem.dispatchEvent(new CustomEvent("click",{bubbles:true}))
+    },
+    
+    selectTreeItem : function(_e){
+        var e = _e;
+        if(!e.closest('#SVGTree'))e = EDITOR.current.treeMap.get(e).e;
+        EDITOR.ui.svgtree.querySelectorAll(".nodeItem.selected,.nodeItem.hasSelected").forEach(function(e){
+            e.classList.remove("selected","hasSelected")
+        });
+        e.classList.add("selected");
+        while(e = e.parentNode.closest("#SVGTree .nodeItem")){
+            e.classList.add("hasSelected","opened");
+        }
     },
     insertText(tspan, text, select){
         
