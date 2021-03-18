@@ -1580,6 +1580,38 @@ SVG = function(/* tag|[size],attr,content */){
  
 
 
+  camelCase = toCamelCase = function(){
+    var i =0, 
+    text = this instanceof String ? this : arguments[i++],
+    upper = arguments[i]; 
+    if(!(text instanceof String))
+      text = typeof text.toString === 'function' ? text.toString() : '';
+    if(text!==''){
+      text = text.split(/[-_\s]+/g).map(function(s,i){ 
+          s = s.toLowerCase();
+          if(i>0 || upper === true){ 
+              s = s[0].toUpperCase() + s.substr(1);
+          }
+          return s;
+      }).join(''); 
+    }
+    return text;
+}
+String.prototype.toCamelCase =  String.prototype.toCamelCase ||  camelCase;
+
+unCamelCase = fromCamelCase = function(){
+    var i =0,
+    text = this instanceof String ? this : arguments[i++],
+    sep = arguments[i];
+    if(typeof sep!=='string')sep = '-'; 
+    if(!(text instanceof String))
+      text = typeof text.toString === 'function' ? text.toString() : '';
+      
+    return text.replace(/[A-Z]/g,function(t,i){return (i === 0 ? '' : sep)+t.toLowerCase()});
+}
+String.prototype.unCamelCase =  String.prototype.fromCamelCase ||  unCamelCase;
+
+
   
 
 Autocomplete = (function(){
@@ -1715,3 +1747,224 @@ tmpl =  (function(){
       return data ? fn( data ) : fn;
     };
   })();
+
+
+  // Переводит elem.style.display в значение none и обратно. 
+// Поддерживает: инверция текущего значения, автоматическое назначение, строка
+var toggleDisplay = function (/*elem, show, safe || elem, display, show*/) { 
+    toggleDisplay.displayData = toggleDisplay.displayData || new Map();
+    var showing = false, 
+        A = arguments, show, safe = false,
+        list = [], st = 0, l,i,j,
+        e = A[0], 
+        display, _display_ = '', _show_, mask = /[^a-z-]/; 
+    for(i=0;i<=A.length;i++ ){
+        if( typeof A[i] === 'boolean' ||  A[i] === '!' || typeof A[i] === 'string'  && !mask.test( A[i] )  || i === A.length && i!==st  ) {//elem, show, safe || elem, display, show
+            if(A[i] === '!')show = undefined;
+            else if(typeof A[i] === 'boolean')show = A[i];
+            else{ show = A[i]; _display_ = A[i] || '';}
+            if(typeof A[i+1] === 'boolean'){
+                i++;
+                if(typeof show === 'boolean' || typeof show === 'undefined') safe = A[i];
+                else show = A[i];
+            }
+
+            for(j=0, l = list.length; j< l; j++){
+                e = list[j]; 
+                if (typeof e === 'string') e = dQ(e);
+                if (e instanceof Element) {
+                    
+                    display = e.style.display || getComputedStyle(e,null).getPropertyValue('display');
+                    _show_ = show;
+                    
+                    switch (typeof show) {
+        
+                        case 'undefined':
+                            _show_ = display === 'none';
+                        case 'boolean':
+                            _show_ = _show_ ? _display_ : 'none';         
+                    }
+                    if (display && display !== 'none'){ 
+                        toggleDisplay.displayData.set(e, display);//Запоминает предыдущее значение
+                        if(_show_ === '' && safe === false) _show_ = display;
+                    }else if (_show_ === '' && safe === false){
+                        _show_ = toggleDisplay.displayData.get(e);
+                        if(!_show_)
+                        switch(e.tagName){
+                            case 'TD': case 'TH':
+                            _show_ =  'table-cell';
+                            break;
+                            case 'TBODY':  
+                            _show_ =  'table-row-group';
+                            break;
+                            case 'TABLE':  
+                            _show_ =  'table';
+                            break;
+                            default : 
+                            _show_ =  'block';
+                        } 
+                        
+                    }
+                    showing = (_show_ !== 'none');
+                    e.style.display = _show_;
+                    if(showing)e.classList.remove('hide')
+        
+                } 
+            } 
+
+            st = i+1;
+            
+        } else {
+            
+            if(i === st){
+                list.length = 0;
+                safe = false;
+                show = undefined;
+                _display_ = '';
+            }
+            e = A[i];
+            switch(typeof e){
+                case 'string':
+                    e = dQAll(e);
+                case 'object':
+                    if(!e)break;
+                    if(e instanceof Element){
+                        list.push(e);
+                    }else if('length' in e){
+                        list = list.concat(Array.from(e));//jQuery and etc
+                    }
+            }
+        } 
+    } 
+    
+
+    
+    return showing;
+}
+var toggleVisibility = function (/*elem, show, safe || elem, display, show*/) { 
+    toggleVisibility.displayData = toggleVisibility.displayData || new Map();
+    var showing = false, 
+        A = arguments, show, safe = false,
+        list = [], st = 0, l,i,j,
+        e = A[0], 
+        display, _display_ = '', _show_, mask = /[^a-z-]/; 
+    for(i=0;i<=A.length;i++ ){
+        if( typeof A[i] === 'boolean' ||  typeof A[i] === 'string'  && !mask.test( A[i] )  || i === A.length && i!==st  ) {//elem, show, safe || elem, display, show
+            if(typeof A[i] === 'boolean')show = A[i];
+            else{ show = A[i]; _display_ = A[i] || '';}
+            if(typeof A[i+1] === 'boolean'){
+                i++;
+                if(typeof show === 'boolean') safe = A[i];
+                else show = A[i];
+            }
+
+            for(j=0, l = list.length; j< l; j++){
+                e = list[j]; 
+                if (typeof e === 'string') e = dQ(e);
+                if (e instanceof Element) {
+                    
+                    display = e.style.visibility || getComputedStyle(e,null).getPropertyValue('visibility');
+                    _show_ = show;
+                    
+                    switch (typeof show) {
+        
+                        case 'undefined':
+                            _show_ = display === 'hidden';
+                        case 'boolean':
+                            _show_ = _show_ ? _display_ : 'hidden';         
+                    }
+                    if (display && display !== 'hidden'){ 
+                        toggleVisibility.displayData.set(e, display);//Запоминает предыдущее значение
+                        if(_show_ === '' && safe === false) _show_ = display;
+                    }else if (_show_ === '' && safe === false){
+                        _show_ = toggleVisibility.displayData.get(e);
+                        if(!_show_)
+                        switch(e.tagName){
+                            // case 'TD': case 'TH':
+                            // _show_ =  'table-cell';
+                            // break;
+                            // case 'TBODY':  
+                            // _show_ =  'table-row-group';
+                            // break;
+                            // case 'TABLE':  
+                            // _show_ =  'table';
+                            // break;
+                            default : 
+                            _show_ =  'visible';
+                        } 
+                        
+                    }
+                    showing = (_show_ !== 'hidden');
+                    e.style.visibility = _show_;
+                    // if(showing)e.classList.remove('hide')
+        
+                } 
+            } 
+
+            st = i+1;
+            
+        } else {
+            
+            if(i === st){
+                list.length = 0;
+                safe = false;
+                show = undefined;
+                _display_ = '';
+            }
+            e = A[i];
+            switch(typeof e){
+                case 'string':
+                    e = dQAll(e);
+                case 'object':
+                    if(!e)break;
+                    if(e instanceof Element){
+                        list.push(e);
+                    }else if('length' in e){
+                        list = list.concat(Array.from(e));//jQuery and etc
+                    }
+            }
+        } 
+    } 
+    
+
+    
+    return showing;
+}
+
+
+function toggleInlineBlock(elem, show) {
+
+    var elem = arguments, show,
+    l = 1,  
+    e = elem[0];
+        
+    for(l=1;l<elem.length;l++)
+        if(typeof elem[l] === 'boolean'){
+            show = elem[l];
+            break;
+        };
+
+    if( (typeof e === 'object') && !(e instanceof Element)&& e && ('length' in e)){
+        elem = elem[0];
+        l = elem.length;
+    } 
+
+    var showing = false, 
+    className = "inlineBlock";
+
+    for(var i=0; i< l; i++){
+        e = elem[i];
+        i++; 
+        if (typeof e === 'string') e = document.querySelector(e);
+        if (e instanceof Element) {
+           if(typeof show === 'boolean') 
+                showing = e.classList.toggle(className, show); 
+            else
+                showing = e.classList.toggle(className);  
+            e.classList.toggle("hide",!showing)
+        }
+    } 
+    return showing;
+
+}
+

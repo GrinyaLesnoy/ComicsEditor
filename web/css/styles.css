@@ -335,3 +335,20 @@ a.saveBtn {
     font-size: 0.8em;
     font-style: italic;
 }
+
+.pageController {
+    border-top: 1px dashed;
+}
+.pageController .btn{
+    margin:5px;
+    /* font-size: 2em; */
+}
+
+
+.pageController >  *{
+    margin:5px;
+    font-size: 2em;
+}
+.pageController >  * *{ 
+    font-size: 1em;
+}

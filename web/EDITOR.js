@@ -42,19 +42,27 @@ EDITOR = {
         EDITOR.ui.input.name.addEventListener('click',ev=>ev.target.select())
         EDITOR.ui.input.prop = SELECT({className:'width100', name:"prop", parentNode:EDITOR.sidebar});
         EDITOR.ui.input.prop.addEventListener('change',function(){
+            var cur = EDITOR.current.node;
             switch(this.value){
                 case 'style': 
-                    EDITOR.ui.input.item.value = EDITOR.current.node.style.cssText.replace(/;\s*/g,';\n'); 
+                    EDITOR.ui.input.item.value = cur.style.cssText.replace(/;\s*/g,';\n'); 
                 break;
                 case 'textContent': 
-                    EDITOR.ui.input.item.value = EDITOR.current.node.textContent; 
+                    EDITOR.ui.input.item.value = cur.textContent; 
                 break;
                 case 'setContent':  
-                    EDITOR.ui.input.item.value =  Array.prototype.map.call(EDITOR.current.node.children, span => span.textContent ).join('\n')
+                    EDITOR.ui.input.item.value =  Array.prototype.map.call(cur.children, span => span.textContent ).join('\n')
+                break;
+                case 'TextStyle':  
+                    EDITOR.ui.input.item.value = cur.parentNode.closest('text').style.cssText.replace(/;\s*/g,';\n'); 
+                break;
+                case 'TSpanStyle':  
+                EDITOR.ui.input.item.value = cur.parentNode.closest('tspan').style.cssText.replace(/;\s*/g,';\n'); 
                 break;
                 default: 
-                    EDITOR.ui.input.item.value = EDITOR.current.node.getAttribute(this.value);
+                    EDITOR.ui.input.item.value = cur.getAttribute(this.value);
             }
+            EDITOR.changeFrame();
         })
         EDITOR.ui.input.item = TEXTAREA({className:'width100', name:"item", parentNode:EDITOR.sidebar});
         var onChange = ev=>{
@@ -65,6 +73,13 @@ EDITOR = {
                 case 'style':
                     cur.style.cssText = v.replace(/[\n|\r]/g,' '); 
 
+                break;
+                case 'TextStyle':
+                    cur.parentNode.closest('text').style.cssText = v.replace(/[\n|\r]/g,' '); 
+
+                break;
+                case 'TSpanStyle':  
+                    cur.parentNode.closest('tspan').style.cssText = v.replace(/[\n|\r]/g,' ');
                 break;
                 case 'textContent':
                     console.log('onChange',ev)
@@ -95,20 +110,20 @@ EDITOR = {
                     EDITOR.current.node.setAttribute(prop,v);
 
             }
-
+            EDITOR.changeFrame();
         }
         // EDITOR.ui.input.item.addEventListener('change',onChange);
         EDITOR.ui.input.item.addEventListener('input',onChange);
-        EDITOR.setBTN('cut');
+        EDITOR.setBTN('cut',{anchor:'cut'},'↷');
         // EDITOR.setBTN('remove',{},'X');
-        EDITOR.setBTN('movetext');
-        EDITOR.setBTN('textanchor',{dataset:{anchor:'start'}},'Al');
-        EDITOR.setBTN('textanchor',{dataset:{anchor:'middle'}},'Ac');
-        EDITOR.setBTN('textanchor',{dataset:{anchor:'end'}},'Ar');
-        EDITOR.setBTN('divtotext',{disabled: true},'dt');
-        EDITOR.setBTN('saveBtn_click',{}, 'S');
-        EDITOR.setBTN('repair',{}, 'Rp');
-        EDITOR.setBTN('reloadImg',{ dataset:{titles  : String.fromCharCode( '\f2f1' ) }, textContentw:String.fromCharCode( '\f2f1' )  } ,'Rl');//'&#xf01e'
+        EDITOR.setBTN('movetext',{anchor:'movetext'},'⇝');
+        EDITOR.setBTN('textanchor',{dataset:{anchor:'start'}},'⭰');
+        EDITOR.setBTN('textanchor',{dataset:{anchor:'middle'}},'⏚');//⭾
+        EDITOR.setBTN('textanchor',{dataset:{anchor:'end'}},'⭲');
+        EDITOR.setBTN('divtotext',{disabled: true},'⬖');
+        EDITOR.setBTN('saveBtn_click',{}, '⛁');//⛁⮯⛀
+        EDITOR.setBTN('repair',{}, '⚒');
+        EDITOR.setBTN('reloadImg',{ dataset:{titles  : String.fromCharCode( '\f2f1' ) }, textContentw:String.fromCharCode( '\f2f1' )  } ,'⮸');//'&#xf01e'
         addEventListener('FrameClick',ev=>{
             dQ('.btn[data-action="divtotext"]').toggleAttribute('disabled', EDITOR.current.active.tagName !== 'DIV');
         })
@@ -181,6 +196,12 @@ EDITOR = {
         xmlns:sodipodi="http://sodipodi.sourceforge.net/DTD/sodipodi-0.dtd"
         xmlns:inkscape="http://www.inkscape.org/namespaces/inkscape"
         version="1.1" viewBox="0 0 ${d.W} ${d.H}" height="${d.H}" width="${d.W}" class="framesvg">`;
+
+        svgTag+=`
+        <sodipodi:namedview 
+            inkscape:window-maximized="1" />
+        `;
+
 		let svg = `${svgTag}
 				<defs id="defs2">
 					<style id="style5694">
@@ -397,7 +418,22 @@ EDITOR = {
 					SVG('tspan',{x:ev.offsetX,y:ev.offsetY},
                     textNode
 					)
-				);
+                );
+                var texts = svg.querySelectorAll('text');
+                if(texts.length>0){
+                    var commonStyles = {}
+                    texts.forEach(function(t){
+                        if(t!==textTag)
+                        for(let s of t.style){
+                            if(commonStyles[s]!==false){
+                              if(commonStyles[s] && commonStyles[s] !== t.style[s]) commonStyles[s] = false;//Если в кадре присутствуют разные - оставим по умолчанию
+                              else commonStyles[s] = t.style[s];
+                            }
+                        };
+                    });
+                    for(let s in commonStyles)
+                        if(commonStyles[s]!==false)textTag.style[s] = commonStyles[s].toCamelCase();
+                }
 				var range = document.createRange();
 				range.setStart(textNode,0);
 				range.setEnd(textNode,0); 
@@ -869,14 +905,22 @@ EDITOR = {
             case 1: 
                 if(last === cur)return;
                 props.push('style');
-                if(cur.tagName === 'text')props.push('setContent');
-                if(cur.tagName === 'tspan')props.push('textContent');
+                switch(cur.tagName){
+                    case 'text': 
+                    props.push('setContent');
+                    break
+                    case 'tspan': 
+                    props.push('textContent');
+                    break
+                } 
                 var A = cur.attributes;
                 for(let i=0; i<A.length;i++)if(A[i].name!=='style')props.push(A[i].name);
             break;
             default: 
                 curElem = cur.parentNode; 
                 // if(last.nodeType === cur.nodeType)return; 
+                props.push('TextStyle');
+                props.push('TSpanStyle');
                 props.push('textContent');
         } 
         

@@ -248,6 +248,79 @@ move : function(options){//start,end,step,s=10
 	 
 	cb()
 },  
+copy (options){//start,end,step,s=10
+	var files = fs.readdirSync(dir), dict=[];   
+
+	let reg = new RegExp(project.fileNumMask); 
+	if(Array.isArray(options) && Array.isArray(options[0]))dict = options;// [[from,to]]
+	else if(Array.isArray(options) || ('start' in options)){//[start,end,to,step=10] || {start : ...,}
+		var to_abs;
+		if(Array.isArray(options)){
+			var [start,end,to,step=10] = options;
+			if(!to){ to = end, end = false };
+		}else{
+			var start = options.start, end = options.end, to=options.to,  step=options.step || 10;
+			to_abs = options.TO;
+		}
+		let nums = {}; 
+		files.forEach(f=>{//Получаем список номеров файлов от start до end (или до конца)
+			let n = f.match(reg); 
+			if(n&&n[1]){
+				n = +n[1];
+				if(n>=start &&  (!end || n<=end))nums[n]=n;
+			}
+		});
+		
+		nums = Object.values(nums);
+		nums.sort((a,b)=>a>b?1:-1);
+		// console.log(nums)
+		if(to_abs){
+			to = to_abs - nums[0];
+		}else{ 
+			to_abs = Math.ceil((nums[0]+to)/10)*10;// Из относительного в абсолютное
+		}
+ 
+		;  
+		// infoLog(`move ${nums}`);
+		infoLog(`copy ${start} , ${to_abs}`); 
+		dict = nums.map((num, i)=>{ 
+			// if(step>0)while(to_abs<=num)to_abs+=step;
+			// else if(step<0)while(to_abs>=num)to_abs+=step; 
+			let new_num = to_abs + i*step; //
+			// to_abs+=step;
+			return [num,new_num];
+		});   
+
+		// if(to>0)dict.sort((a,b)=>b[0]>a[0] ? 1 : -1);  //если назад - от первого к последнему
+		 
+	}else{ //{from:to}
+		for(let from in options)dict.push([from, options[from]]);
+	}
+	 
+		for(let d of dict){
+			//$tmpDir
+			let [from,to] = d; 
+			from = from+''; 
+			if(MIN>from.length)from ='0'.repeat(MIN-from.length)+from; 
+			to = to+'';
+			if(MIN>to.length)to ='0'.repeat(MIN-to.length)+to; 
+
+			reg = new RegExp('(^(' + PREF_ +  from + ')((_en)|~){0,1}\.\[a-z~]+$)')
+			let list = files.filter(f=>reg.test(f));  
+
+			from = new RegExp(from);
+			list.forEach(f=>{
+				var nf = f.replace(from,to);
+				if(!fs.existsSync(nf)){
+					fs.copyFileSync(f, nf );
+				}
+			});  
+
+		} 
+ 
+	 
+	cb()
+},
 exchange(options){
 	 if(options instanceof Array){
 		for (let item of options){
@@ -269,7 +342,7 @@ create : function(o){infoLog(`create`);
 	var $tpl = 'frame';
 	var $f = [];
 	if(Array.isArray(o)){//список имён
-		if(o[1]<o[0] || typeof o[1] === 'string'){//[170,12] || [170,'12']
+		if(o[1]<o[0]&&o[1]<50 || typeof o[1] === 'string'){//[170,12] || [170,'12']; 50 за раз - ограничение, чтобы не нафигачил снова несколько тысяч из-за опечатеи 
 			let start = o[0], count=parseInt(o[1]), step = o[2] || 10;
 			$f = Array.from({length:count},(v,i)=>( start + i*step ));
 		}else{//[170,180...] 

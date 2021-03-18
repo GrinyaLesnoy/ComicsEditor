@@ -211,6 +211,7 @@ PAGE = {
 		for(let j = start; j< list.length; j++){
 			item = list[j];
 			let [name, {width:W,height:H,path:path,png:pngIMG,svg:svgIMG=false}, f]=item; 
+			if(!pngIMG)console.error(item);
 			let [scale, cx, cy,file_Width,file_Height] = Object.assign(
 				[
 					PAGE.styles.scale,
@@ -657,33 +658,71 @@ PAGE = {
 
 		pageData.addEventListener('click',EDITOR.actions.Frame_click);
 
-		var reloadBtn;
+		var pageController;
 
 		if(this.pageData){
 			//this.pageData
 			// this.ctx.canvas
-			reloadBtn = SPAN({className:'reloadBtn btn' },'R');
-			GlobalData.set(reloadBtn,'data',this.pageData);
-			reloadBtn.addEventListener('click',function(){
+			pageController = DIV({className:'pageController'});
+			let btn;
+			
+
+			btn = SPAN({className:'toggleBtn btn', title:'toggle Page ' + this.page},'▼');//▲►▼◄
+			SPAN({ parentNode: pageController },btn)
+			btn.dataset.page = this.page;
+			btn.addEventListener('click',function(){
+				var box = this.closest('.page-box');
+				var v = toggleDisplay(box.querySelectorAll('.page-block'),'!',true);
+				if(v){
+					this.textContent = '▼';
+					if(this.nextSibling)this.nextSibling.remove();
+				}
+				else {
+					this.textContent = '►';
+					this.after(SPAN(this.dataset.page))
+				}
+			});
+
+			btn = SPAN({className:'upBtn btn', title:'↑ Page', parentNode: pageController },'↑');//←↑→↓
+			btn.addEventListener('click',function(){
+				var box = this.closest('.page-box');
+				if(box.previousElementSibling)box.previousElementSibling.before(box);
+			});
+
+			btn = SPAN({className:'upBtn btn', title:'↓ Page', parentNode: pageController },'↓');
+			btn.addEventListener('click',function(){
+				var box = this.closest('.page-box');
+				if(box.nextElementSibling)box.nextElementSibling.after(box);
+			});
+
+			// reload Page
+			btn = SPAN({className:'reloadBtn btn', title:'reload Page', parentNode: pageController },'⭮');
+			GlobalData.set(btn,'data',this.pageData);
+			btn.addEventListener('click',function(){
 				var reloadBtn = this;
 				var pageData = GlobalData.get(reloadBtn,'data' );
 				console.log(pageData);
 				PAGE.createPageFromData(pageData,ctx => {
-					var box = reloadBtn.closest('.page-block');
+					var box = reloadBtn.closest('.page-box');
+					var block = box.querySelector('.page-block');
 					var c = box.querySelector('canvas');
-					if(c){
+					block.innerHTML ='';
+					block.appendChild(ctx.canvas);
+					// if(c){
 
-						c.after(ctx.canvas);
-						c.remove();
-					}else{
-						box.insertBefore(ctx.canvas,box.firstElementChild);
-					}
+					// 	c.after(ctx.canvas);
+					// 	c.remove();
+					// }else{
+					// 	box.insertBefore(ctx.canvas,box.firstElementChild);
+					// }
 				})
-			})
+			});
 		}
 		 
 		var pageBox = DIV({className:'page-box', parentNode:PAGE.container},[
-			DIV({className:'page-block'},[this.ctx.canvas,DIV(reloadBtn)]),
+			
+			pageController,
+			DIV({className:'page-block'},this.ctx.canvas),
 			DIV({className:'page-block'},pageData)
 		]);   
 

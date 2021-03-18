@@ -206,13 +206,15 @@ try {
         d[1].height = +size[1]; 
         count++;
 
-        if (count === DATA.list.length)
+        if (count === DATA.list.length){
+            console.log('writte ' + dir + '/SceneDATA.js')
             fs.writeFile(
                 dir + '/SceneDATA.js',
                 `DATA = ${JSON.stringify(DATA)};\nDATA.scene.texts = ${JSON.stringify(texts, null, '\t')}`,
 
                 (err) => { if (err) return errorLog(err); }
             );
+            }
 
     })})
 
