@@ -1,4 +1,40 @@
 PAGE = {
+	async getJSON(url, cd) {
+
+ 
+
+		try {
+	 
+		  const response = await fetch(url, {
+	 
+			method: "POST",
+	 
+			headers: {
+	 
+			  'Content-Type': 'application/json'
+	 
+			},
+	 
+		  });
+	 
+	  
+	 
+		  const result = await response.json();
+
+		  if(cd)cd(result)
+	 
+		  return result
+	 
+		  
+	 
+		} catch (error) {
+	 
+		  console.log(error);
+	 
+		}
+	 
+	 },
+	//  Показать список сцен
 	showList(){
 		if(PROJECT.Scenes){
 			var fr = DocFragment(), Scenes = PROJECT.Scenes;
@@ -91,10 +127,17 @@ PAGE = {
 		this.inited = true;
 		if(nextInd<opScenes.length)PAGE.loadDATA();else PAGE.__construct();
 	}, 
+	// Получение списка кадров
 	loadDATA(){
 		var nextPath = PROJECT.scenesDir+'/'+ PAGE.opScenes[PAGE.nextInd]+'/';
 				delete PROJECT.scene.next; 
 				let onload =()=>{ 
+					// старотовать с... (для "тяжелых" сцен)
+					if((PARAMS.start || PARAMS.end) && PROJECT.list.length === 0){
+						const start = +PARAMS.start || 0;
+						const end = +PARAMS.end || DATA.list[DATA.list.length-1][1];
+						DATA.list = DATA.list.filter(v => v[1].num >= start && v[1].num <= end)
+					}
 					 
 					PROJECT.list = PROJECT.list.concat(DATA.list.map((v)=>{ v[1].path = nextPath;return v;}));   
 					
@@ -112,7 +155,10 @@ PAGE = {
 					else 
 					if(PAGE.nextInd<PAGE.opScenes.length)PAGE.loadDATA();else PAGE.__construct();
 				} 
-				loadScript([nextPath+'SceneDATA.js'],onload)
+				// this.getJSON(nextPath+'scene.json',console.log)
+				let dataName = PARAMS.data || 'SceneDATA.js';
+				if(dataName.indexOf('.js')===-1)dataName+='.js'
+				loadScript([nextPath+dataName],onload)
 				
 				
 	},
@@ -210,13 +256,19 @@ PAGE = {
 		let mg = PAGE.styles.frameMargin;
 		for(let j = start; j< list.length; j++){
 			item = list[j];
-			let [name, {width:W,height:H,path:path,png:pngIMG,svg:svgIMG=false}, f]=item; 
-			if(!pngIMG)console.error(item);
+			let [name, {width:W,height:H,path:path,png:pngIMG,svg:svgIMG=false}, f]=item;
+			let iw, ih; 
+			if(pngIMG){
+				iw = pngIMG.width, ih = pngIMG.height; 
+			}else{
+				iw = W, ih = H; 
+				console.error(item);
+			}
 			let [scale, cx, cy,file_Width,file_Height] = Object.assign(
 				[
 					PAGE.styles.scale,
 					0,0,
-					pngIMG.width, pngIMG.height
+					iw, ih
 				],
 				this.sizes[name]
 			);
@@ -257,7 +309,7 @@ PAGE = {
 	framesList : [],
 	framesInPage : [],
 	framesData : {},
-	setTitle(D){
+	setTitle(D, update){
 		let ctx = this.ctx;
 		switch(PROJECT.name){
 			case "Саша":
@@ -297,11 +349,14 @@ PAGE = {
 				ctx.stroke();
 		break;
 		}
-		this.appendPage();
-		PAGE.setList();
+		if(!update){
+			this.appendPage();
+			PAGE.setList();
+
+		}
 	},
-	titlePage(D){
-		this.newPage();
+	titlePage(D, update){
+		if(!update)this.newPage();
 		if(D.img){
 			let ctx = this.ctx;
 			let img = new Image();
@@ -314,12 +369,12 @@ PAGE = {
 				if(D.img.y === '50%')D.img.y = (PAGE.height - D.img.height)*0.5;
 				
 				ctx.drawImage(this,D.img.x||0,D.img.y||0,D.img.width,D.img.height ); 
-				PAGE.setTitle(D); 
+				PAGE.setTitle(D, update); 
 			}
-			img.onerror=()=>PAGE.setTitle(D);
+			img.onerror=()=>PAGE.setTitle(D, update);
 			// console.log(D.img.src)
-			img.src = 	PAGE.opScenes[0] + '/' + D.img.src;
-			}else PAGE.setTitle(D);
+			img.src = 	PAGE.opScenes[0] + '/' + D.img.src+'?v='+Date.now();
+			}else PAGE.setTitle(D, update);
 		
 	}, 
 
@@ -495,7 +550,7 @@ PAGE = {
 	},
 
 	setCTXFrame : function(ctxData){
-		this.ctx.drawImage(ctxData.pngIMG, ...ctxData.arg); 
+		if(ctxData.pngIMG)this.ctx.drawImage(ctxData.pngIMG, ...ctxData.arg); 
 		// console.log(this.ctx.getImageData(cx, cy,1,1))
 		if(ctxData.svgIMG)this.ctx.drawImage(ctxData.svgIMG, ...ctxData.arg); 
 
@@ -514,7 +569,7 @@ PAGE = {
 		var padding = PROJECT.styles.FRAME.padding || 0;
 		// console.log(this.framesList)
 		this.framesList.forEach(frm =>{ 
-			var fra = DIV({className:'frame', name : frm.name, parentNode:fr}  );
+			var fra = DIV({className:'frame', name : frm.name, title:frm.name, parentNode:fr}  );
 			INPUT({className:'h3', readonly : true, value : frm.name, parentNode:fra }).addEventListener('click',(ev)=>{ev.target.select();})
 			ALink({className:'saveBtn', dataset : {name:frm.name}, download : frm.name+'.svg', parentNode:fra},'Сохранить')
 			.addEventListener('click',EDITOR.actions.saveBtn_click)
@@ -537,7 +592,7 @@ PAGE = {
 				name : frm.name,
 				W:frm.imgPos[2],
 				H:frm.imgPos[3],
-				img:frm.img.src,
+				img:frm.img ? frm.img.src : '',
 				pathes : cont.pathes,
 				texts : cont.texts
 			}
@@ -730,6 +785,14 @@ PAGE = {
 	},
 	createPageFromData(pageData, callback){
 		this.setCanvas();
+
+		if(pageData.frames.length === 0){
+			if(PROJECT.scene.titlePage){
+				PAGE.titlePage(PROJECT.scene.titlePage, true);
+			}
+			callback ( PAGE.ctx );
+		return this.ctx;
+		}
 		
 		var i = 0, name = pageData.frames[i], d,
 		ln = PAGE.lang,

@@ -198,15 +198,15 @@ try {
 
     // }))
 
-    DATA.list.forEach(d =>{
-        child_process.exec('identify -format "%w|%h" "' + d[1].imgFile + '"', (err, stdout, stderr) => {
-        if (err) console.error(f);
-        var size = stdout.split('|');
-        d[1].width = +size[0];
-        d[1].height = +size[1]; 
-        count++;
+    // DATA.list.forEach(d =>{
+    //     child_process.exec('identify -format "%w|%h" "' + d[1].imgFile + '"', (err, stdout, stderr) => {
+    //     if (err) console.error('identify ' + d[1].imgFile);
+    //     var size = stdout.split('|');
+    //     d[1].width = +size[0];
+    //     d[1].height = +size[1]; 
+    //     count++;
 
-        if (count === DATA.list.length){
+    //     if (count === DATA.list.length){
             console.log('writte ' + dir + '/SceneDATA.js')
             fs.writeFile(
                 dir + '/SceneDATA.js',
@@ -214,9 +214,9 @@ try {
 
                 (err) => { if (err) return errorLog(err); }
             );
-            }
+    //         }
 
-    })})
+    // })})
 
 } catch (error) {
     errorLog(error)

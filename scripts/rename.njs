@@ -102,7 +102,7 @@ DO = {
 // или пактно 
 // [StartNum, +Num]  ([StartNum, EndNum = count,  +Num, Step = 10]) 
 // {start:N, count: M} {start:N, to: M}  ({start, end,to,step})
-move : function(options){//start,end,step,s=10
+move : function(options,filter){//start,end,step,s=10
 	var files = fs.readdirSync(dir), dict=[]; 
 	var $tmpDir = dir+'/$tmp';
 	if(!fs.existsSync($tmpDir)){
@@ -121,7 +121,7 @@ move : function(options){//start,end,step,s=10
 			var [start,end,to,step=10] = options;
 			if(!to){ to = end, end = false };
 		}else{
-			var start = options.start, end = options.end, to=options.to,  step=options.step || 10;
+			var {start,end,to,step=10} = options; 
 			to_abs = options.TO;
 		}
 		let nums = {}; 
@@ -176,6 +176,7 @@ move : function(options){//start,end,step,s=10
 
 			reg = new RegExp('(^(' + PREF_ +  from + ')((_en)|~){0,1}\.\[a-z~]+$)')
 			let list = files.filter(f=>reg.test(f));  
+			if(filter instanceof RegExp)list = list.filter(f=>filter.test(f));  
 
 			from = new RegExp(from);
 			let new_list = list.map(f=>f.replace(from,to)); 
@@ -313,6 +314,7 @@ copy (options){//start,end,step,s=10
 				var nf = f.replace(from,to);
 				if(!fs.existsSync(nf)){
 					fs.copyFileSync(f, nf );
+					// fs.renameSync(f, nf);
 				}
 			});  
 
@@ -322,19 +324,77 @@ copy (options){//start,end,step,s=10
 	cb()
 },
 exchange(options){
+	var files = fs.readdirSync(dir), dict=[]; 
+	var $tmpDir = dir+'/$tmp'; 
+	if(!fs.existsSync($tmpDir)){
+		fs.mkdirSync($tmpDir);
+	}else if(fs.readdirSync($tmpDir).length > 0){
+		errorLog('clean temp dir!');
+		return;
+	}
+	$tmpDir += '/';
+	
 	 if(options instanceof Array){
 		for (let item of options){
 			// TODO: njs event ?..
 		}
 	 }else{
-		var opt = {}
-		for (let from in options){
-			let to = options[from];
-			opt[from] = to;
-			opt[to] = from;
+		 var dictPar = options.dict || options; 
+		var opt = options, dict = {}; 
+		for (let from in dictPar){
+			if(from == +from){ 
+				dict[from] = dictPar[from]+''; 
+				dict[dictPar[from]] = from+''; 
+			} 
 		}
-		DO.move(opt)
+		// DO.move(opt)
 	 }
+
+	 if(opt.nosvg)opt.exclude = 'svg'; //
+
+	 
+	 for(let d in dict){
+		//$tmpDir 
+		let from = d;
+		let to = dict[d]; 
+		if(MIN>from.length)from ='0'.repeat(MIN-from.length)+from;  
+		if(MIN>to.length)to ='0'.repeat(MIN-to.length)+to; 
+
+		reg = new RegExp('(^(' + PREF_ +  from + ')((_en)|~){0,1}\.\[a-z~]+$)')
+		let list = files.filter(f=>reg.test(f));  
+		if(opt.filter instanceof RegExp)list = list.filter(f=>opt.filter.test(f));  
+		if(opt.exclude instanceof RegExp)list = list.filter(f=>!opt.exclude.test(f));  
+		else if(typeof opt.exclude === 'string')list = list.filter(f=>f.indexOf(opt.exclude)===-1);  
+		if(opt.include instanceof RegExp)list = list.filter(f=>opt.include.test(f));  
+		else if(typeof opt.include === 'string')list = list.filter(f=>f.indexOf(opt.include)!==-1);  
+
+		from = new RegExp(from);
+		let new_list = list.map(f=>f.replace(from,to)); 
+		if(
+			list.find((f,i) => {
+				// return true;
+				let nf = new_list[i];
+				if(fs.existsSync($tmpDir+nf))return true; //Мало ли, какая херня
+				fs.renameSync(dir+f, $tmpDir+nf);
+			})
+		){
+			errorLog('err '+ from + ' => '+ to + ' in $tmp ' ); 
+			return;
+		}
+
+	}
+	files = fs.readdirSync(dir);
+	var tmpFiles = fs.readdirSync($tmpDir);
+	//Проверка, нет ли занятых имён
+	var zanyat = tmpFiles.find( f=> fs.existsSync(dir+f) );
+	if(zanyat){
+		errorLog('err   : ' + zanyat ); 
+		return;
+	}
+	tmpFiles.forEach((f,i)=>{
+		fs.renameSync($tmpDir+f, dir+f);
+		// infoLog($tmpDir+f + ' - ' + dir+f);
+	});
 },
 // Создаие новых кадров (аналог move : [Num1,Num2,Num3...] или {start,count,end,step} )
 create : function(o){infoLog(`create`); 
@@ -351,7 +411,8 @@ create : function(o){infoLog(`create`);
 	}else {
 		// let o = o;
 		console.log(o)
-		if(('start' in o) || ('count' in o)){
+		if(o.list&&o.list.length>0)$f = $f.concat( o.list ).sort();
+		else if(('start' in o) || ('count' in o)){
 			let start = o.start, step = o.step || 10;
 			if(!start || start === '+'){
 				start = 10;
@@ -367,7 +428,6 @@ create : function(o){infoLog(`create`);
 			for(var t = start; t<= end; t+=step)$f.push( t );
 		}	
 		
-		if(o.list)$f = $f.concat( o.list ).sort();
 
 		console.log($f);
 
@@ -378,11 +438,11 @@ create : function(o){infoLog(`create`);
 	}  
 	var tplPNG = project.dataDir + '/template/' + $tpl + '.png';
 	var tplKRA = project.dataDir + '/template/' + $tpl + '.kra';
-
 	for(let n of $f){
 		let name = n+''; 
 		if(MIN>name.length)name ='0'.repeat(MIN-name.length)+name;
 		name = PREF_ +  name;
+		console.log(name)
 		if (!fs.existsSync(dir+name + '.png')) 
 			fs.copyFileSync(tplPNG, dir+name + '.png');
 		if (!fs.existsSync(dir+name + '.kra'))
@@ -395,13 +455,26 @@ create : function(o){infoLog(`create`);
 },  
 // Меняет номер сцены в имени файлов [с,по]
 rescene : function(o){
-	let [from,to]= o;console.log([from,to])
+	let [from,to,shift]= o;console.log([from,to])
 	var files = fs.readdirSync(dir);
 	var _f = new RegExp('(\\.'+from +'\\.)'),_t=`.${to}.`;
 	files.forEach(f=>{
 		if(_f.test(f)){
-			
-			fs.renameSync(dir+f, dir+f.replace(_f,_t)) 
+			var nf = dir+f.replace(_f,_t);
+			if(shift){
+				let reg = new RegExp(project.fileNumMask); 
+				let n = f.match(reg); 
+				if(n&&n[1]){
+					n = n[1]; 
+					let from = n;
+					let to =( (+n)+shift)+''; 
+					if(MIN>from.length)from ='0'.repeat(MIN-from.length)+from;  
+					if(MIN>to.length)to ='0'.repeat(MIN-to.length)+to; 
+					nf = n.replace(from,to);
+				}
+			}
+			if(!fs.existsSync(nf)) 
+				fs.renameSync(dir+f, nf) 
 		}
 	})
 },
@@ -453,13 +526,31 @@ fixName : function( ){
 		let img = d.img || '';
 		d.svg.forEach(f=>{
 			let svg = fs.readFileSync(f, 'utf8'); 
-			let r = svg.match(imgReg);
+			let r = svg.match(imgReg),change = false;
 			if(r&&r.length>1){
 				let Name_old = r[1];
 				if(Name_old!==img){
 					svg = svg.replace(new RegExp(Name_old,'g'),img);
-					fs.writeFile(f, svg, (err)=>{if(err)return console.log(err);}); 
+					change = true;
 				}
+			}
+			if(svg.indexOf('xmlns:inkscape')==-1){
+				svg = svg.replace('"http://www.w3.org/2000/svg"','"http://www.w3.org/2000/svg" xmlns:inkscape="http://www.inkscape.org/namespaces/inkscape"');
+				change = true;
+			}
+			if(svg.indexOf('xmlns:sodipodi')==-1){
+				svg = svg.replace('"http://www.w3.org/2000/svg"','"http://www.w3.org/2000/svg" xmlns:sodipodi="http://sodipodi.sourceforge.net/DTD/sodipodi-0.dtd"');
+				change = true;
+			}
+			if(svg.indexOf('inkscape:window-maximized')==-1){
+				svg = svg.replace('<defs',`
+				<sodipodi:namedview inkscape:window-maximized="1" />
+				<defs`);
+				change = true;
+			}
+			if(change){
+				console.log(f,change)
+				fs.writeFile(f, svg, (err)=>{if(err)return console.log(err);}); 
 			}
 		})
 	}

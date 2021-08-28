@@ -198,8 +198,7 @@ EDITOR = {
         version="1.1" viewBox="0 0 ${d.W} ${d.H}" height="${d.H}" width="${d.W}" class="framesvg">`;
 
         svgTag+=`
-        <sodipodi:namedview 
-            inkscape:window-maximized="1" />
+        <sodipodi:namedview inkscape:window-maximized="1" />
         `;
 
 		let svg = `${svgTag}

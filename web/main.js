@@ -84,11 +84,12 @@ document.addEventListener("DOMContentLoaded", ()=>{
 		CreateElement('link',{rel:"stylesheet",href: TEMPLATEDIR + 'css/styles.css',parentNode:document.head})
  
 
-		if(~location.href.split('/').pop().indexOf('en'))PAGE.lang='en';
+		// if(~location.href.split('/').pop().indexOf('en'))PAGE.lang='en';
 		PAGE.backupData = JSON.stringify(PROJECT);
         PAGE.width = PROJECT.styles.PAGE.width;
 		PAGE.height = PROJECT.styles.PAGE.height; 
 		PAGE.scene = PARAMS.scene;
+		PAGE.lang = PARAMS.lang||PARAMS.ln;
 		PAGE.loacl = location.href.match(/\/([^\/\\\?#]*)([\?|#].*){0,1}$/)[1];
 		if(PROJECT.scene || PROJECT.Scenes)
 		PAGE.Init();
