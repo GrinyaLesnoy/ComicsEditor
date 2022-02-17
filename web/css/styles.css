@@ -42,6 +42,11 @@ a:hover{
     width: 100%;
 }
 
+.valignMiddle{
+    display: inline-block;
+    vertical-align: middle;
+}
+
 /* #pages-container{
     margin-right: var(--sidebar-width);
 } */

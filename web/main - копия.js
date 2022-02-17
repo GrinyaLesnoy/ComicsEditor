@@ -569,7 +569,7 @@ PAGE = {
 			
 			svgBlock.style.transformOrigin = `0 0`
 			svgBlock.style.transform = `scale(${scale})`
-			svgBlock.toggleAttribute('contenteditable',true);
+			// svgBlock.toggleAttribute('contenteditable',true);
 			let svg = svgBlock.querySelector('svg');
 			fra.appendChild(svgBlock)
 

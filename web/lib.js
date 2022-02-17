@@ -1968,3 +1968,102 @@ function toggleInlineBlock(elem, show) {
 
 }
 
+// Переворачивает объект: {k1:v1, k2: v2} => {v1: k1, v2:k2} || {v1:true,v2:true} || ...
+function SWAP(o,val,self){
+    var ret = {}, useVal = arguments.length>1, d, isArray = Array.isArray(o);
+    if(!o)return ret;
+    var keys = isArray ? o : Object.keys(o), l=keys.length; 
+    if(typeof val === 'function')for( var i=0,k; i<l;i++ ){
+        k = isArray ? i : keys[i]; //if(k==+k)k=+k;
+        d =  val.call(self,o[k],k,o);
+        if(d){
+            d = Object.assign({key:o[k],value:k},d);
+            ret[ d.key ] = d.value;
+        }
+    }
+    else for( var i=0,k; i<l;i++ ){
+        k = isArray ? i : keys[i]; //if(k==+k)k=+k;
+        ret[ o[k] ] = useVal === true ? val : k;
+    }
+    
+    return ret;
+  }
+// [{id:'i1',..},{id:'i2',...}] => {i1 : {id:'i1',..},i2 : {id:'i2',..}} || {i1:true,i2:true} || ...
+  function byKEY(o,key,val,self){
+    if(!o)return {};
+    var ret = {}, A = arguments, d, isArray = Array.isArray(o);
+    
+    var keys = isArray ? o : Object.keys(o), l=keys.length; 
+    if(typeof key === 'function'){
+        var self = typeof val === 'object' ? val : this;
+        for( var i=0,k; i<l;i++ ){
+            k = isArray ? i : keys[i]; //if(k==+k)k=+k;
+            d =  key.call(self,k,o[k],o);
+            if(d){
+                d = Object.assign({key:k,value:o[k]},d);
+                ret[ d.key ] = d.value;
+            }
+        }
+    }else{ 
+        var useVal = A.length>2;
+        for( var i=0,k; i<l;i++ ){
+            k = isArray ? i : keys[i]; //if(k==+k)k=+k;
+            d = o[k]; 
+            k = d[key];
+            if( typeof k !=='undefined' )
+                ret[ k ] = useVal === true ? val : d;
+        }
+    }
+    return ret;
+  }
+  function byKEYList(o,key,val,self){
+    if(!o)return {};
+    var ret = {}, A = arguments, d, isArray = Array.isArray(o);
+    
+    var keys = isArray ? o : Object.keys(o), l=keys.length; 
+    if(typeof key === 'function'){
+        var self = typeof val === 'object' ? val : this;
+        for( var i=0,k; i<l;i++ ){
+            k = isArray ? i : keys[i]; //if(k==+k)k=+k;
+            d =  key.call(self,k,o[k],o);
+            if(d){
+                d = Object.assign({key:k,value:o[k]},d);
+                ret[ d.key ] = ret[ d.key ] || [];
+                ret[ d.key ].push(d.value);
+            }
+        }
+    }else{ 
+        var useVal = A.length>2;
+        for( var i=0,k; i<l;i++ ){
+            k = isArray ? i : keys[i]; //if(k==+k)k=+k;
+            d = o[k]; 
+            k = d[key];
+            if( typeof k !=='undefined' ){
+                ret[ k ] = ret[ k ] || [];
+                ret[ k ].push(useVal === true ? val : d);
+            }
+        }
+    }
+    return ret;
+  }
+
+  numToString = function(v,minLength){
+    var s = (v || 0)+'';
+    if(minLength) s = '0'.repeat(minLength - s.length)+s
+    return s;
+  }
+
+
+  MathG = {
+      length3(c1,c2,g){
+          if(!g){
+              return Math.sqrt(Math.pow(c1,2)+Math.pow(c2,2))
+          }
+          if(!c2){
+              return Math.sqrt(Math.pow(g,2)-Math.pow(c1,2))
+          }
+      },
+      alpha3(c,cont,g){
+
+      }
+  }

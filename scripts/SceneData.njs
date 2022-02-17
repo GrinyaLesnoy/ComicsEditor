@@ -73,8 +73,12 @@ try {
             // create : [10,20]
             // clean : true
             // rescene : [19,20]
+            // exchange:{10:20, nosvg: true}
+            // exchange:{10:20}
             create :{start: 10, count:18}
             // move : {start:10, to:20}
+            //  create :{start: 10, count:1, tpl : '3x2'}
+            //  create :{list: [10],   tpl : '3x2'}
         };`, (err) => { if (err) errorLog(err); });
     }
 

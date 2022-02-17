@@ -37,13 +37,16 @@ PAGE = {
 	//  Показать список сцен
 	showList(){
 		if(PROJECT.Scenes){
-			var fr = DocFragment(), Scenes = PROJECT.Scenes;
+			var fr = DocFragment(), Scenes = PROJECT.Scenes, scenesList = PROJECT.scenesList;
+			// var byName = SWAP(Scenes)
 			var f = PAGE.loacl;
-			var setData = function(s,name){
+			const mask = new RegExp(PROJECT.sceneNameMask);
+			var setData = function(name){
+				// let s = f.match(mask)[1];
 				var im=IMG();
 				var info = DIV({className:'info'})
 				var l = ALink({
-					href:f+'?'+s,
+					href:f+'?'+name,
 					className:'Item',
 					parentNode:fr
 				},[
@@ -51,7 +54,7 @@ PAGE = {
 					SPAN({className:'title'},name),
 					info
 				]);
-				loadScript([PROJECT.scenesDir+'/'+Scenes[s]+'/SceneDATA.js'],function(){
+				loadScript([PROJECT.scenesDir+'/'+name+'/SceneDATA.js'],function(){
 					im.src= PROJECT.scenesDir+'/'+ name + '/'+ DATA.list[0][2];
 					if(DATA.scene.titlePage){
 						DIV({parentNode:info},'Глава ' + DATA.scene.titlePage.chapter)
@@ -61,9 +64,10 @@ PAGE = {
 					DIV({parentNode:info}, `${DATA.list.length} кадров${p}`)
 				})
 			}
-			for(var s in Scenes){
-				setData(s,Scenes[s])
-			}
+			// for(var s in Scenes){
+			// 	setData(s,Scenes[s])
+			// }
+			scenesList.forEach(setData)
 			DIV({id:"scenesList",parentNode: document.body},
 				fr
 				)
@@ -135,8 +139,8 @@ PAGE = {
 					// старотовать с... (для "тяжелых" сцен)
 					if((PARAMS.start || PARAMS.end) && PROJECT.list.length === 0){
 						const start = +PARAMS.start || 0;
-						const end = +PARAMS.end || DATA.list[DATA.list.length-1][1];
-						DATA.list = DATA.list.filter(v => v[1].num >= start && v[1].num <= end)
+						const end = +PARAMS.end;
+						DATA.list = DATA.list.filter(v => v[1].num >= start && (!end || v[1].num <= end))
 					}
 					 
 					PROJECT.list = PROJECT.list.concat(DATA.list.map((v)=>{ v[1].path = nextPath;return v;}));   
@@ -205,7 +209,9 @@ PAGE = {
 			k.svg = this; onload();
 		}; 
 		SVGI.onerror = onload; 
-		SVGI.src = sn+(ln === 'en'?'_en':'')+'.svg'; 
+		k.svgPath = sn+(ln === 'en'?'_en':'')+'.svg'; 
+		k.svgName = d[0]+(ln === 'en'?'_en':'')+'.svg'; 
+		SVGI.src = k.svgPath; 
 		})
 	},
 	InitPages(){
@@ -256,7 +262,7 @@ PAGE = {
 		let mg = PAGE.styles.frameMargin;
 		for(let j = start; j< list.length; j++){
 			item = list[j];
-			let [name, {width:W,height:H,path:path,png:pngIMG,svg:svgIMG=false}, f]=item;
+			let [name, {width:W,height:H,path:path,png:pngIMG,svg:svgIMG=false, svgPath : svgPath, svgName : svgName}, f]=item;
 			let iw, ih; 
 			if(pngIMG){
 				iw = pngIMG.width, ih = pngIMG.height; 
@@ -288,6 +294,7 @@ PAGE = {
 				scale : scale,
 				scaled_Width : scaled_Width,
 				scaled_Height : scaled_Height,
+				scaledPl: s,
 				placeWidth : placeWidth,
 				placeHeight : placeHeight,
 				file_Width : file_Width,
@@ -296,6 +303,8 @@ PAGE = {
 				cy : cy,
 				pngIMG : pngIMG,
 				svgIMG : svgIMG,
+				svgPath : svgPath,
+				svgName : svgName,
 				imgFile : item[1].imgFile,
 				path : path
 			})	
@@ -435,8 +444,8 @@ PAGE = {
 			let l = pmatrix.length, 
 				maxX = PAGE.styles.maxX-scaled_Width, 
 				maxY = PAGE.styles.maxY-scaled_Height;
-			if(name === 'K.S.23.0460')
-				console.log(name);
+			// if(name === 'K.S.23.0460')
+			// 	console.log(name);
 				var minY;// Минимальный y - чтобы не перебирать заведомо занятые значения
 			//Проверить отступы
 				var y0 = PAGE.styles.minY;
@@ -444,11 +453,14 @@ PAGE = {
 				if(!this.hasSpec && i>0 && i < list.length-1){//Если - не первый и не последний, и на странице нет "специальных"
 					let _next, bigIndex, MaxH = 0.9*PAGE.placeBox.height;
 					// Временный
-					_next = list[i+1], _prev = list[i-1];
+					_prev = list[i-1], _next = list[i+1],_naxt2 = list[i+2];
+					
+					let freeWidth = maxX, freeHeight = maxY - _prev.placeWidth - _prev.cx; 
 					if( 
-						_prev.placeHeight <= placeHeight &&
-							(
-							(list[i+1].placeHeight > placeHeight) || (list[i+2]&&list[i+2].placeHeight > placeHeight)&& _prev.placeHeight <= placeHeight 
+						_prev.placeHeight <= placeHeight && _next.placeWidth <= freeWidth && (
+							(_next.placeHeight > placeHeight) 
+							|| 
+							_naxt2 && _naxt2.placeWidth <= freeWidth &&(_naxt2.placeHeight > placeHeight) && _prev.placeHeight <= placeHeight 
 						)
 					){
 						y0+=_prev.placeHeight;
@@ -476,7 +488,6 @@ PAGE = {
 
 			let xp0, xp1, yp0, yp1; 
 			let x1,y1;
-			
 			yloop:for(y = y0; y<=maxY;y++){
 				y1 = y+placeHeight;
 				for(x = mg; x<=maxX;x++){
@@ -522,6 +533,8 @@ PAGE = {
 		var ctxData = {
 			pngIMG : pngIMG,
 			svgIMG : svgIMG,
+			svgPath : itemData.svgPath,
+			svgName : itemData.svgName,
 			arg : arg,
 			border : PROJECT.styles.FRAME.border && [x,y,scaled_Width,scaled_Height]
 		}; 
@@ -568,10 +581,15 @@ PAGE = {
 		var fr = DocFragment();
 		var padding = PROJECT.styles.FRAME.padding || 0;
 		// console.log(this.framesList)
+		
 		this.framesList.forEach(frm =>{ 
 			var fra = DIV({className:'frame', name : frm.name, title:frm.name, parentNode:fr}  );
-			INPUT({className:'h3', readonly : true, value : frm.name, parentNode:fra }).addEventListener('click',(ev)=>{ev.target.select();})
-			ALink({className:'saveBtn', dataset : {name:frm.name}, download : frm.name+'.svg', parentNode:fra},'Сохранить')
+			
+			INPUT({className:'h3', readonly : true, value : frm.name, parentNode:fra }).addEventListener('click',(ev)=>{
+				ev.target.select();
+				EDITOR.clipboardName(ev.target.value,ev.ctrlKey,ev.shiftKey)
+			})
+			ALink({className:'saveBtn', dataset : {name:frm.name}, download : frm.ctxData.svgName, parentNode:fra},'Сохранить')
 			.addEventListener('click',EDITOR.actions.saveBtn_click)
 			STYLES.set(fra, {
 				left : frm.imgPos[4],
@@ -701,6 +719,8 @@ PAGE = {
 				svg : svg,
 				ctxData : frm.ctxData
 			} 
+
+			svg.setAttribute('name',frm.name)
 			
 			// fra.innerHTML = `<input class='h3' readonly value="${frm.name}" /><textarea class="content">${texts}</textarea>`;
 			// TODO: btn{download: frm.name + (PAGE.lang === 'en' ? '_en' : '') +'.svg'};
@@ -772,6 +792,16 @@ PAGE = {
 					// }
 				})
 			});
+			INPUT({parentNode: pageController, style: {opacity:0.5}, value : numToString(this.pageData.page)})
+			.addEventListener('click',function(ev){
+				this.select()
+				if(ev.ctrlKey)
+				navigator.clipboard.writeText(PROJECT.idName + '_' + this.value +'.png').then(function() {
+					/* clipboard successfully set */
+				  }, function() {
+					/* clipboard write failed */
+				  });
+			})
 		}
 		 
 		var pageBox = DIV({className:'page-box', parentNode:PAGE.container},[

@@ -38,8 +38,16 @@ EDITOR = {
         EDITOR.ui.svgtreebox = DIV({id:"svgctrlr",className:'width100',  parentNode:EDITOR.sidebar},[
             EDITOR.ui.svgtree
         ]);
-        EDITOR.ui.input.name = INPUT({className:'width100', readonly : true, name:"name", parentNode:EDITOR.sidebar});
-        EDITOR.ui.input.name.addEventListener('click',ev=>ev.target.select())
+        var nameInputBox = DIV({ parentNode:EDITOR.sidebar})
+        EDITOR.ui.input.name = INPUT({className:'width100 valignMiddle', readonly : true, name:"name", parentNode:nameInputBox});
+        EDITOR.ui.input.name.style.width = 'calc( 100% - 35px )'
+        EDITOR.ui.input.name.addEventListener('click',ev=>{
+            ev.target.select()
+            
+            EDITOR.clipboardName(ev.target.value,ev.ctrlKey,ev.shiftKey)
+        })
+        
+        EDITOR.setBTN('saveBtn_click',{className: 'valignMiddle', parentNode:nameInputBox}, '⛁');//⛁⮯⛀
         EDITOR.ui.input.prop = SELECT({className:'width100', name:"prop", parentNode:EDITOR.sidebar});
         EDITOR.ui.input.prop.addEventListener('change',function(){
             var cur = EDITOR.current.node;
@@ -121,9 +129,9 @@ EDITOR = {
         EDITOR.setBTN('textanchor',{dataset:{anchor:'middle'}},'⏚');//⭾
         EDITOR.setBTN('textanchor',{dataset:{anchor:'end'}},'⭲');
         EDITOR.setBTN('divtotext',{disabled: true},'⬖');
-        EDITOR.setBTN('saveBtn_click',{}, '⛁');//⛁⮯⛀
+        // EDITOR.setBTN('saveBtn_click',{}, '⛁');//⛁⮯⛀
         EDITOR.setBTN('repair',{}, '⚒');
-        EDITOR.setBTN('reloadImg',{ dataset:{titles  : String.fromCharCode( '\f2f1' ) }, textContentw:String.fromCharCode( '\f2f1' )  } ,'⮸');//'&#xf01e'
+        // EDITOR.setBTN('reloadImg',{ dataset:{titles  : String.fromCharCode( '\f2f1' ) }, textContentw:String.fromCharCode( '\f2f1' )  } ,'⮸');//'&#xf01e'
         addEventListener('FrameClick',ev=>{
             dQ('.btn[data-action="divtotext"]').toggleAttribute('disabled', EDITOR.current.active.tagName !== 'DIV');
         })
@@ -242,7 +250,7 @@ EDITOR = {
                             break;
                         }
                     }
-					p = SVG('text',{parentNode:svg});
+					p = SVG('text',{parentNode:svg});//, contenteditable:true
 					if(tr)
 					switch(tr_type){
 						case "translate":
@@ -270,6 +278,9 @@ EDITOR = {
 							// tr = `matrix(${tr}`;
 							tr = t.attr.transform;
 						break;
+                        case "rotate":
+                            // tr = `rotate(${tr.join('deg,')}deg)`;
+                        // break;
 						default:
 							tr = t.attr.transform;
 					} 
@@ -335,7 +346,7 @@ EDITOR = {
 			console.log( p.getBoundingClientRect() )
 
 			if(t.attr.width)p.style.width = Math.round((t.attr.width)*scale)+'px'; 
-			if(tr)p.style.transform =tr;
+			if(tr)p.setAttribute('transform',tr);
 			 
 
 			
@@ -394,7 +405,7 @@ EDITOR = {
         
     },
     setBTN(action,attr,ctx){
-        var btn = ALink(Object.assign(attr||{},{ parentNode:EDITOR.sidebar}), ctx || action[0].toUpperCase());
+        var btn = ALink(Object.assign({ parentNode:EDITOR.sidebar, title: action}, attr||{}), ctx || action[0].toUpperCase());
         btn.dataset.action = action;
         btn.classList.add('btn');
         return btn
@@ -409,11 +420,14 @@ EDITOR = {
         Frame_click : function(ev){
             var svg = ev.target.closest('svg'),
             textTag = svg && ev.target.closest('svg div, text');
+            if(!svg&&!textTag)return;
+                svg.parentNode.toggleAttribute('contenteditable',true);
+                // svg.setAttributeNS(null, 'contenteditable', true);
                 var selection = window.getSelection();
                 var textNode = selection.anchorNode;
 			if( svg && !textTag){
 				textNode = TextNode('');
-				textTag = SVG('text',{x:ev.offsetX,y:ev.offsetY,parentNode: svg},
+				textTag = SVG('text',{x:ev.offsetX,y:ev.offsetY,parentNode: svg},//, contenteditable: true
 					SVG('tspan',{x:ev.offsetX,y:ev.offsetY},
                     textNode
 					)
@@ -558,6 +572,7 @@ EDITOR = {
             }
         },
         Frame_keydown : function(ev){
+            // if(ev.target.closest('svg'))
             console.log(ev.key);
             var shiftKey = ev.shiftKey;
             var ctrlKey = ev.ctrlKey;
@@ -730,12 +745,17 @@ EDITOR = {
             console.log('blur' );
             // EDITOR.cleanSVG(this); 
         },
-        saveBtn_click : function(){
+        saveBtn_click : function(ev){
             var isFrameBtn = this.parentNode.classList.contains('frame');
             var svg_orig = isFrameBtn ? this.parentNode.querySelector('svg') : EDITOR.current.svg;
+            
             var svg = svg_orig.cloneNode(true);
+            var name = svg.getAttribute('name');
+            EDITOR.clipboardName(name,ev.ctrlKey,ev.shiftKey)
+            svg.removeAttribute('name');
              EDITOR.cleanSVG(svg);
             svg.querySelector('foreignObject').remove();
+            svg.querySelectorAll('[contenteditable]').forEach(e=>e.removeAttribute('contenteditable'))
             svg_orig.querySelectorAll('div').forEach(function(div){
                 var innerHTML = div.innerHTML.replace(/(<br[\/]{0,1}>)/g,'\n').trim()
                 if(innerHTML) {
@@ -831,7 +851,7 @@ EDITOR = {
                var R = W + parseInt(cur.style.left)*scale - Wsvg;
                 if(R > 0)W-=R;
             //    TODO: рассчёт длины и трансформации
-               var text = SVG('text',{x:x,y:y, parentNode:svg});
+               var text = SVG('text',{x:x,y:y, parentNode:svg});//, contenteditable: true
                ['fontSize','fontFamily','fill'].forEach(s => {
                    if(cur.style[s])text.style[s] = cur.style[s] + (s === 'fontSize' ? 'px' : '');
                }) 
@@ -870,8 +890,11 @@ EDITOR = {
             EDITOR.changeFrame();
         },
         repair(trim){
+            EDITOR.actions.reloadImg();
+            EDITOR.current.svg.parentElement.toggleAttribute('contenteditable',false)
             EDITOR.current.selected.forEach(text=>{
                 EDITOR.cleanSVGText(text);
+                // text.toggleAttribute('contenteditable',false)
                 text.setAttribute('x',~~(+text.getAttribute('x')));
                 text.setAttribute('y',~~(+text.getAttribute('y')));
                 text.querySelectorAll('tspan').forEach(tspan=>{
@@ -881,8 +904,10 @@ EDITOR = {
                     if(trim)t= t.trim();
                     tspan.innerHTML = t;
                 })
+                // text.toggleAttribute('contenteditable',true)
                 
             });
+            EDITOR.current.svg.parentElement.toggleAttribute('contenteditable',true)
         },
         reloadImg(){
             var svg = EDITOR.current.svg;
@@ -1163,20 +1188,44 @@ EDITOR = {
         EDITOR.changeFrame();
     },
     moveText(X=0,Y=0,type = "d"){
+        
         // var selection = window.getSelection();
         //             var firstNode =  selection.baseNode,
         //                 cur = firstNode.parentElement;
         // var text = cur.closest('text,svg div');
         var text = EDITOR.current.active;
         var svg =  EDITOR.current.svg;
+        
+        svg.parentElement.toggleAttribute('contenteditable',false)
         var x,y;
         if(type === "a"){
             var sW = parseInt(svg.getAttribute('width'));
             var sH = parseInt(svg.getAttribute('height'));
             
         }
+        var selection = window.getSelection();
+            var range, startOffset, endOffset;
+            var tspan_sel =  selection.anchorNode.parentElement;
+            if(tspan_sel.tagName === 'tspan'){
+                range = selection .getRangeAt(0)
+                startOffset = range.startOffset
+                endOffset = range.endOffset 
+                //     range.setStart(tspan,startOffset);
+                //     range.setEnd(tspan,endOffset); 
+                //     selection.removeAllRanges();
+                //     selection.addRange(range);
+            }
+                    
+
+            // range.setStart(first,text.length);
+            // range.setEnd(first,text.length); 
+            // first.focus(); 
+            // // range.collapse(false);
+            // selection.removeAllRanges();
         EDITOR.current.selected.filter(t=>!!t).forEach(text => {
             if( text.tagName === 'text'){
+                
+                // text.removeAttributeNS(null,'contenteditable')
                 x = X; y = Y;
                 if(type === "a"){
                     var textBB = text.getBBox();
@@ -1194,6 +1243,7 @@ EDITOR = {
                     x = +x; y = +y;
                 }
 
+                // text.setAttributeNS(null,'contenteditable',true)
                 text = [text].concat(Array.from(text.querySelectorAll('tspan')));
                  
                 text.forEach(e=>{
@@ -1213,6 +1263,16 @@ EDITOR = {
         );
         EDITOR.changeFrame();
         
+        svg.parentElement.toggleAttribute('contenteditable',true)
+        if(tspan_sel.tagName === 'tspan'){ 
+            
+            range = document.createRange();
+            range.setStart(tspan_sel.firstChild,startOffset);
+            range.setEnd(tspan_sel.firstChild,endOffset); 
+            selection.removeAllRanges();
+            selection.addRange(range);
+            tspan_sel.focus()
+        }  
     },
     cleanSVGText(text){
         // Убиваем пустые в конце
@@ -1242,5 +1302,35 @@ EDITOR = {
             div.innerHTML = div.innerHTML.trim()
             if(!div.innerText.trim())div.remove();
         })
-    }
+    },
+    
+	clipboardName(name,copyName,copyPath){
+			var frm = PAGE.framesData[name].data;
+			if(copyName){//Путь к файлу
+				console.log(frm)
+				var src = frm.ctxData.svgName;
+				if(location.protocol === 'file:' && copyPath){
+					var pathname = location.pathname;
+					var i = pathname.indexOf(':');
+					if(i!==-1)pathname = pathname.substr(i-1);
+					pathname = pathname.split('/');
+					pathname.pop(); 
+					frm.ctxData.svgPath.split('/').forEach(function(s){
+						switch(s){
+							case '.':break;
+							case '..':pathname.pop();break;
+							default:
+								pathname.push(s);
+						}
+					});
+					src = decodeURIComponent(pathname.join(navigator.userAgentData.platform === 'Windows' ? '\\':'/'))
+				} 
+				navigator.clipboard.writeText(src).then(function() {
+					/* clipboard successfully set */
+				  }, function() {
+					/* clipboard write failed */
+				  });
+			}
+				
+		}
 }

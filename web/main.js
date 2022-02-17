@@ -88,7 +88,7 @@ document.addEventListener("DOMContentLoaded", ()=>{
 		PAGE.backupData = JSON.stringify(PROJECT);
         PAGE.width = PROJECT.styles.PAGE.width;
 		PAGE.height = PROJECT.styles.PAGE.height; 
-		PAGE.scene = PARAMS.scene;
+		PAGE.scene = PARAMS.scene ? decodeURI(PARAMS.scene) : undefined;
 		PAGE.lang = PARAMS.lang||PARAMS.ln;
 		PAGE.loacl = location.href.match(/\/([^\/\\\?#]*)([\?|#].*){0,1}$/)[1];
 		if(PROJECT.scene || PROJECT.Scenes)
