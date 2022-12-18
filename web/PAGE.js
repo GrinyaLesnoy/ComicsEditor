@@ -36,8 +36,8 @@ PAGE = {
 	 },
 	//  Показать список сцен
 	showList(){
-		if(PROJECT.Scenes){
-			var fr = DocFragment(), Scenes = PROJECT.Scenes, scenesList = PROJECT.scenesList;
+		if(PROJECT.scenesList){
+			var fr = DocFragment(),   scenesList = PROJECT.scenesList;
 			// var byName = SWAP(Scenes)
 			var f = PAGE.loacl;
 			const mask = new RegExp(PROJECT.sceneNameMask);
@@ -88,19 +88,19 @@ PAGE = {
 
 		ALink({href:PAGE.loacl, parentNode:document.body},'< К списку сцен')
 
-		PAGE.scene = PAGE.scene || Object.keys(PROJECT.Scenes)[0];
+		PAGE.scene = PAGE.scene || PROJECT.scenesList[0];
 		var S;// N сцены, Которую надлежит открыть
-		if( !PROJECT.Scenes [PAGE.scene] ){//Чтобы можно было запросить по фрагменту имени, а не по номеру сцены
+		// if( PROJECT.scenesList.indexOf(PAGE.scene)===-1 ){//Чтобы можно было запросить по фрагменту имени, а не по номеру сцены
 			if(PROJECT.scenesList.indexOf(PAGE.scene) === -1) PAGE.scene = PROJECT.scenesList.find(s=>s.indexOf(PAGE.scene)!==-1);
-			for(let i in PROJECT.Scenes)if(PROJECT.Scenes[i] === PAGE.scene){
-				PAGE.scene = i;
-				break;
-			}
-		}
-		if(PROJECT.Scenes && !PAGE.inited){ 
-			S = (+PAGE.scene) || PAGE.scene ;
+			// for(let i in PROJECT.Scenes)if(PROJECT.Scenes[i] === PAGE.scene){
+			// 	PAGE.scene = i;
+			// 	break;
+			// }
+		// }
+		if(PROJECT.scenesList && !PAGE.inited){ 
+			S = PROJECT.scenesList.indexOf(PAGE.scene);
 			PROJECT.scene.next = [
-				PROJECT.Scenes[S]
+				PROJECT.scenesList[S]
 			]
 			PAGE.container = PAGE.container || DIV({id:'pages-container', parentNode:document.body});
 			
@@ -114,11 +114,11 @@ PAGE = {
 				
 				switch(typeof n){
 					case 'boolean':
-						n = PROJECT.Scenes[S];
+						n = PROJECT.scenesList[S];
 					break
 					case 'number':
 					case 'string':
-						n = PROJECT.Scenes[n] || n;
+						n = PROJECT.scenesList[n] || n;
 					break;
 				}
 				if(!~opScenes.indexOf(n))

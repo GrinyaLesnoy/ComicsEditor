@@ -114,14 +114,21 @@ move : function(options,filter){//start,end,step,s=10
 	$tmpDir += '/';
 
 	let reg = new RegExp(project.fileNumMask); 
+	if(options === -1){
+		options = fs.readFileSync('lastRenameList.json')
+		options = JSON.parse(options).map(it=>it.reverse())
+	}
 	if(Array.isArray(options) && Array.isArray(options[0]))dict = options;// [[from,to]]
 	else if(Array.isArray(options) || ('start' in options)){//[start,end,to,step=10] || {start : ...,}
-		var to_abs;
+		var to_abs, saveSteps = false;
 		if(Array.isArray(options)){
 			var [start,end,to,step=10] = options;
 			if(!to){ to = end, end = false };
 		}else{
 			var {start,end,to,step=10} = options; 
+			if(step === false){
+				step = 10; saveSteps = true
+			}
 			to_abs = options.TO;
 		}
 		let nums = {}; 
@@ -147,8 +154,12 @@ move : function(options,filter){//start,end,step,s=10
 		infoLog(`move ${start} , ${to_abs}`); 
 		dict = nums.map((num, i)=>{ 
 			// if(step>0)while(to_abs<=num)to_abs+=step;
-			// else if(step<0)while(to_abs>=num)to_abs+=step; 
-			let new_num = to_abs + i*step; //
+			// else if(step<0)while(to_abs>=num)to_abs+=step;
+			let new_num; 
+			if(saveSteps)
+				new_num = num + to;
+			else	
+				new_num = to_abs + i*step; //
 			// to_abs+=step;
 			return [num,new_num];
 		});   
@@ -174,7 +185,7 @@ move : function(options,filter){//start,end,step,s=10
 			to = to+'';
 			if(MIN>to.length)to ='0'.repeat(MIN-to.length)+to; 
 
-			reg = new RegExp('(^(' + PREF_ +  from + ')((_en)|~){0,1}\.\[a-z~]+$)')
+			reg = new RegExp('(^(' + PREF_ +  from + ')((_en)|~|(_bg)){0,1}\.\[a-z~]+$)','i')
 			let list = files.filter(f=>reg.test(f));  
 			if(filter instanceof RegExp)list = list.filter(f=>filter.test(f));  
 
@@ -306,7 +317,7 @@ copy (options){//start,end,step,s=10
 			to = to+'';
 			if(MIN>to.length)to ='0'.repeat(MIN-to.length)+to; 
 
-			reg = new RegExp('(^(' + PREF_ +  from + ')((_en)|~){0,1}\.\[a-z~]+$)')
+			reg = new RegExp('(^(' + PREF_ +  from + ')((_en)|~|(_bg)){0,1}\.\[a-z~]+$)','i')
 			let list = files.filter(f=>reg.test(f));  
 
 			from = new RegExp(from);
@@ -360,7 +371,7 @@ exchange(options){
 		if(MIN>from.length)from ='0'.repeat(MIN-from.length)+from;  
 		if(MIN>to.length)to ='0'.repeat(MIN-to.length)+to; 
 
-		reg = new RegExp('(^(' + PREF_ +  from + ')((_en)|~){0,1}\.\[a-z~]+$)')
+		reg = new RegExp('(^(' + PREF_ +  from + ')((_en)|~|(_bg)){0,1}\.\[a-z~]+$)','i')
 		let list = files.filter(f=>reg.test(f));  
 		if(opt.filter instanceof RegExp)list = list.filter(f=>opt.filter.test(f));  
 		if(opt.exclude instanceof RegExp)list = list.filter(f=>!opt.exclude.test(f));  
@@ -506,6 +517,38 @@ fixName : function( ){
 	var dict = { }
 	var files = fs.readdirSync(dir);
 	let reg = new RegExp(project.fileNumMask); 
+
+	var count = (s,str)=>{
+		let c = 0, i;
+		while(i!==-1){
+			i=str.indexOf(s,i);
+			if(i==-1)break;
+			c++;i++;
+		}
+		return c;
+	}
+
+	var defaultPathStyle = {
+		fill: project.styles.fillStyle,
+		opacity:1,
+		fill:"#fff",
+		stroke:project.styles.fillStyle,
+		"stroke-width":3
+	}
+	
+	let patchStyles = [defaultPathStyle]
+	if(project.styles.patchStyles){
+		project.styles.patchStyles.forEach(p=>{
+			patchStyles.push({...defaultPathStyle, ...p})
+		})
+	}  
+	let sx = 50, secColorCoords = '-130 -20,-40 -20,40 z';
+	patchStyles = patchStyles.map(fillStyle => Object.entries(fillStyle).map(s=>s.join(":")).join(';'))
+	var defaultPathesList = patchStyles.map((fillStyle,i) =>
+		`<path id="color${i}" d="m ${sx+50*i},${secColorCoords}" style="${fillStyle}"/>`
+		)
+	var defaultPathesStr = defaultPathesList.join('')
+
 	files.forEach(f=>{//Получаем список номеров файлов от start до end (или до конца)
 		let n = f.match(reg);
 		if(n&&n[1]&&f.indexOf('.svg')){
@@ -548,6 +591,24 @@ fixName : function( ){
 				<defs`);
 				change = true;
 			}
+			if(svg.indexOf(secColorCoords)===-1){
+				svg = svg.replace('<path',`${defaultPathesStr}
+				<path`).replace(/(\n*<path [^>]+d="m 25,-122 c -77,47 56,69 90,53 13,-6 8,-56 -1,-62 -12,-8 -33,0 -47,0 -17,0 -27,7 -41,9 z"[^>]+><\/path>)/,'');
+				change = true;
+			}
+			else if(count(secColorCoords,svg)<patchStyles.length){
+				patchStyles.forEach((st,i)=>{
+					if(svg.indexOf(st,i)===-1){
+						svg = svg.replace('<path',`${defaultPathesList[i]}
+						<path`);
+						change = true;
+					}
+				})
+			}
+			// if(svg.indexOf('"m 25,-122 c -77,47 56,69 90,53 13,-6 8,-56 -1,-62 -12,-8 -33,0 -47,0 -17,0 -27,7 -41,9 z"')!==-1){
+			// 	svg = svg.replace(/(\n*<path [^>]+d="m 25,-122 c -77,47 56,69 90,53 13,-6 8,-56 -1,-62 -12,-8 -33,0 -47,0 -17,0 -27,7 -41,9 z"[^>]+><\/path>)/,'');
+			// 	change = true;
+			// }
 			if(change){
 				console.log(f,change)
 				fs.writeFile(f, svg, (err)=>{if(err)return console.log(err);}); 

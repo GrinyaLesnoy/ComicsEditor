@@ -13,6 +13,7 @@ EDITOR = {
         selected : [],
     },// пред выделенные
     buffer : [],
+    cache: {},
     Init (){
         EDITOR.sidebar = DIV({id:'sidebar', parentNode:document.body});
         EDITOR.sidebar.addEventListener('click',function(ev){
@@ -67,6 +68,9 @@ EDITOR = {
                 case 'TSpanStyle':  
                 EDITOR.ui.input.item.value = cur.parentNode.closest('tspan').style.cssText.replace(/;\s*/g,';\n'); 
                 break;
+                case 'svg':   
+                EDITOR.ui.input.item.value = EDITOR.current.svg.outerHTML
+                break;
                 default: 
                     EDITOR.ui.input.item.value = cur.getAttribute(this.value);
             }
@@ -107,6 +111,13 @@ EDITOR = {
                         else SVG('tspan',{parentNode:cur,x :x,y:y+i*lh,textContent:v[i]});
                     for(;i<ch.length; i++)ch[i].remove();
                 break;
+                case 'svg':
+                    // ev.type === "input"
+                    var parentNode = EDITOR.current.svg.parentNode
+                    EDITOR.current.svg.outerHTML = v;
+                    EDITOR.current.svg=EDITOR.current.node=parentNode.querySelector('svg')
+                    EDITOR.drawTree()
+                break;
                 case 'x':
                 case 'y':
                     if(cur.tagName==='text'){
@@ -131,6 +142,7 @@ EDITOR = {
         EDITOR.setBTN('divtotext',{disabled: true},'⬖');
         // EDITOR.setBTN('saveBtn_click',{}, '⛁');//⛁⮯⛀
         EDITOR.setBTN('repair',{}, '⚒');
+        EDITOR.setBTN('reloadfeame',{}, '⭮');
         // EDITOR.setBTN('reloadImg',{ dataset:{titles  : String.fromCharCode( '\f2f1' ) }, textContentw:String.fromCharCode( '\f2f1' )  } ,'⮸');//'&#xf01e'
         addEventListener('FrameClick',ev=>{
             dQ('.btn[data-action="divtotext"]').toggleAttribute('disabled', EDITOR.current.active.tagName !== 'DIV');
@@ -209,12 +221,37 @@ EDITOR = {
         <sodipodi:namedview inkscape:window-maximized="1" />
         `;
 
+        let pathesStr;
+        if(d.pathes&&d.pathes.length>0){
+            pathesStr = d.pathes.join('')
+        }
+        if(!pathesStr || pathesStr.indexOf('d="m 25,-122 c -77,47 56,69 90,53 13,-6 8,-56 -1,-62 -12,-8 -33,0 -47,0 -17,0 -27,7 -41,9 z"')!==-1 && d.pathes.length === 1){
+            if(!EDITOR.cache.defaultPathesStr){ 
+                var defaultPathStyle = {
+                    fill: PROJECT.styles.fillStyle,
+                    opacity:1,
+                    fill:"#fff",
+                    stroke:PROJECT.styles.fillStyle,
+                    "stroke-width":3
+                }
+                
+                let patchStyles = [defaultPathStyle]
+                if(PROJECT.styles.patchStyles){
+                    PROJECT.styles.patchStyles.forEach(p=>{
+                        patchStyles.push({...defaultPathStyle, ...p})
+                    })
+                }  
+                let sx = 50;
+                EDITOR.cache.defaultPathesStr = patchStyles.map((fillStyle,i) =>
+                    `<path id="color${i}" d="m ${sx+50*i},-130 -20,-40 -20,40 z" style="${Object.entries(fillStyle).map(s=>s.join(":")).join(';')}"/>`
+                    ).join('')
+                
+            }
+            pathesStr = EDITOR.cache.defaultPathesStr;
+        }
 		let svg = `${svgTag}
 				<defs id="defs2">
-					<style id="style5694">
-						svg.framesvg path{fill:#fff; stroke:${PROJECT.styles.fillStyle};
-						stroke-width:${stroke};
-                        opacity:1;} 
+					<style id="style5694"> 
                         svg.framesvg text, svg.framesvg div, svg.framesvg textarea, svg.framesvg p, svg.framesvg flowPara{${ PROJECT.styles.FRAME.svgFont }; }
 
 					</style>
@@ -223,7 +260,7 @@ EDITOR = {
 					<image sodipodi:insensitive="true" xlink:href="${d.img}" y="0" x="0" height="${d.H}" width="${d.W}" />
 				</g>
 				<g id="layer2"></g>
-				${d.pathes&&d.pathes.length>0 ? d.pathes.join('') : `<path id="path5753" d="m 25,-122 c -77,47 56,69 90,53 13,-6 8,-56 -1,-62 -12,-8 -33,0 -47,0 -17,0 -27,7 -41,9 z" style="opacity:1;fill:#fff;stroke:${PROJECT.styles.fillStyle};stroke-width:${stroke};"/>`}
+				${pathesStr}
 				<g id="layer3"></g> 
 				
 		</svg>`; 
@@ -909,6 +946,26 @@ EDITOR = {
             });
             EDITOR.current.svg.parentElement.toggleAttribute('contenteditable',true)
         },
+        reloadfeame(trim){//TODO: обновлять из локального файла
+            // EDITOR.current.svg.parentElement.toggleAttribute('contenteditable',false)
+            // EDITOR.current.selected.forEach(text=>{
+            //     EDITOR.cleanSVGText(text);
+            //     // text.toggleAttribute('contenteditable',false)
+            //     text.setAttribute('x',~~(+text.getAttribute('x')));
+            //     text.setAttribute('y',~~(+text.getAttribute('y')));
+            //     text.querySelectorAll('tspan').forEach(tspan=>{
+            //         tspan.setAttribute('x',~~(+tspan.getAttribute('x')));
+            //         tspan.setAttribute('y',~~(+tspan.getAttribute('y')));
+            //         var t = tspan.innerHTML; 
+            //         if(trim)t= t.trim();
+            //         tspan.innerHTML = t;
+            //     })
+            //     // text.toggleAttribute('contenteditable',true)
+                
+            // });
+            // EDITOR.current.svg.parentElement.toggleAttribute('contenteditable',true)
+            // EDITOR.actions.reloadImg();
+        },
         reloadImg(){
             var svg = EDITOR.current.svg;
             var d = EDITOR.FramesData.get(svg);
@@ -935,6 +992,9 @@ EDITOR = {
                     break
                     case 'tspan': 
                     props.push('textContent');
+                    break
+                    case 'svg': 
+                    props.unshift('svg');
                     break
                 } 
                 var A = cur.attributes;
@@ -1332,5 +1392,130 @@ EDITOR = {
 				  });
 			}
 				
-		}
+		},
+        pathTools : {
+            
+            parsePath (path){if(typeof path==='object')return path;
+                var a = path.split(' '),i;
+                for(var k=0,v,l=a.length;k<l;k++){v=a[k];
+                    i=v.indexOf(','); a[k]=(i!==-1)?[(+v.substr(0,i)),(+v.substr(i+1))]:v; 
+                }
+                return a;
+            } ,
+            stringifyPath(a){  return a.join(' '); },
+            breakPath (el){
+                var d = el.getAttribute(d).split(/m/i);
+                if(!d[0].trim())d.shift()
+                d.forEach((d,i)=>{ 
+                    if(i!==0){
+                        let el1 = el.cloneNode();
+                        el.after(el1);
+                        el=el1;
+                    }
+                    el.setAttribute('d','M'+d)
+                })
+            },
+            sum (path){
+            var a = this.parsePath(path),i,sum=[0,0],type='l',j=0;
+            for(let v of a){
+                if(typeof v==='string')switch(v){
+                    case 'm':case 'l':type='l';continue;
+                    case 'c':type='c';j=0;continue;
+                }else{ if(type==='c'&&j!==2){j++;}else{j=0;sum[0]+=v[0];sum[1]+=v[1];} } 
+            }
+            return sum;  
+            },
+            
+            mirror(a,x,y){if(!x&&!y){x=-1;y=1;}else{ x=x?-1:1;y=y?-1:1;}
+                var ret=typeof a,a = ret === 'string' ? this.parsePath(a):a;
+                for(let v of a) if(typeof v==='object'){v[0]*=x;v[1]*=y;} 
+                return ret === 'string' ? a.join(' '):a;
+            },
+            clone (a){
+                if(typeof a === 'string')return a;
+                for(var P=[], k=0,v,l=a.length;k<l;k++){v=a[k];
+                    P[k]=(typeof v==='object')?[v[0],v[1]]:v; 
+                }
+                return P;
+            },
+            BBox (a){
+                var mX=0,MX=0,mY=0,MY=0,x,y;
+                var ret=typeof a,a = ret === 'string' ? this.parsePath(a):a,last=[0,0],abs=true,type='L',i=0,imax=0;
+                for(var k=0,v,l=a.length;k<l;k++){v=a[k];
+                    if(typeof v==='string'){
+                    abs=(type=v.toUpperCase())===v;i=imax=0; 
+                    switch(type){
+                        case 'C':i=imax=2;break;case 'S':i=imax=2;i--;type='C';break;
+                        case 'Q':i=imax=1;break;case 'T':i=imax=1;i--;type='Q';break;
+                        case 'M':type='L';break; 
+                    } 
+                    }else if(i===0){i=imax;
+                    if(abs===true){x=last[0]=v[0];y=last[1]=v[1];}else{x=(last[0]+=v[0]);y=(last[1]+=v[1]);}
+                    mX=x<mX?x:mX;MX=x>MX?x:MX;
+                    mY=y<mY?y:mY;MY=y>MY?y:MY;
+                    }else { i--; }
+                }   
+                return {x:mX,y:mY,width:MX-mX,height:MY-mY };
+            },
+            scale (a,x,y,clean){console.log(a,x);
+                if((!x||x===1)&&(!y||y===1))return a;
+                var ret=typeof a,a = ret === 'string' ? this.parsePath(a):a,x=x||1,y=y||x;
+                for(var k=0,v,l=a.length;k<l;k++){v=a[k];
+                    if(typeof v==='object'){v[0]*=x;v[1]*=y;}
+                }
+                if(clean===0||clean)this.clean(a,clean); 
+                return ret === 'string' ? a.join(' '):a;
+            },
+            translate (a,x,y){
+                if(!x&&!y)return a;
+                var ret=typeof a,a = ret === 'string' ? this.parsePath(a):a,x=x||0,y=y||0, abs=true;
+                for(let v of a){ 
+                if(typeof v==='string') abs=(type=v.toUpperCase())===v;
+                else if(abs===true||k===1){ v[0]+=x;v[1]+=y; }	
+                }
+                return ret === 'string' ? a.join(' '):a;
+            },
+            // cleanXML : function(xml,i){
+            //      var reg = /[\s|^]d[\s]*=[\s]*"(?:[^"\/]*\/)*([^"]+)/g;
+            //      reg = /<path(.*?)[\s|^]d[\s]*=[\s]*"(?:[^"\/]*\/)*([^"]+)/g, $=this;
+            //     return xml.replace(reg, function(math,p1,p2){console.log(arguments); return '<path '+p1+' d="['+$.clean(p2,i)+']';});
+            // },
+            clean(a,i){
+                var ret=typeof a,a = ret === 'string' ? this.parsePath(a):a, i = i===true?0:Math.pow(10,i||0),ro = Math.roundAbs;
+                for(let v of a){ 
+                    if(typeof v==='object') v[0]=ro(i*v[0])/i;v[1]=ro(i*v[1])/i;
+                }
+                //return path;
+                return ret === 'string' ? a.join(' '):a;
+            },
+            relative(d){
+                if(d instanceof Element)d = d.getAttribute(d)
+                var ret=typeof d,d = ret === 'string' ? this.parsePath(d):d,last=[0,0],abs=true,type='L',i=0,imax=0;
+                for(var k=0,v,l=d.length;k<l;k++){v=d[k];
+                    if(typeof v==='string'){
+                    abs=(type=v.toUpperCase())===v;i=imax=0; 
+                    switch(type){
+                        case 'C':i=imax=2;break;
+                        case 'S':i=imax=2;i--;type='C';break;
+                        case 'Q':i=imax=1;break;
+                        case 'T':i=imax=1;i--;type='Q';break;
+                        case 'M':type='L';break; 
+                    } d[k]=v.toLowerCase();
+                    }else if(i===0){
+                        if(abs===true){
+                            v[0]-=last[0];v[1]-=last[1];}
+                            last[0]+=v[0];
+                            last[1]+=v[1];
+                            i=imax;
+                        }else {
+                            if(abs===true){
+                                v[0]-=last[0];
+                                v[1]-=last[1];
+                            }
+                            i--; 
+                        };
+                }  
+            return ret === 'string' ? d.join(' '):d;	
+            }
+        }
 }

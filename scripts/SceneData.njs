@@ -86,7 +86,7 @@ try {
     var exclude = {}
 
     var FLIST = fs.readdirSync(dir).filter(f => {
-        if (/(~)/.test(f)) {
+        if (/(~|(_bg))/i.test(f)) {
             if (!/(~$)/.test(f))//-бэкапы
                 exclude[f.replace(/(~)/g, '').slice(0, -3)] = f;
             return false;
