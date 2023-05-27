@@ -68,17 +68,41 @@ try {
         }
         fs.writeFile(dir + '/scene.json', JSON.stringify(DATA.scene, null, '\t'), (err) => { if (err) errorLog(err); });
         fs.writeFile(dir + '/_renameData.njs', `module.exports = {
-            // move : {0:0}, 
-            // move : [0,10],
-            // create : [10,20]
+            /**
+            =move=
+                -1 - undo last move
+                ARRAY1 [[start1,to1],....]
+                ARRAY2 [start,end,to,step=10] 
+                SIMPLE OBJ {from:to,...}
+                EXT OBJ {start,end,to|TO,step=10}
+            =copy=
+                ~move 
+            =exchange= 
+                 {FROM<num>:TO<num>, include: <Reg|string>,exclude: <Reg|string>, filter: <Reg|string>, svg:<Boolean>, nosvg:<Boolean>}
+            =rescene= 
+                ARRAY - [FROM <num|array>,TO<num|true|none>,SHIFT<num|none>] (SHIFT - смещение от-но текущей нум кадров)
+                OBJ {from|<num>,to|TO,step|shift} 
+
+            =create= 
+                ARRAY1: [<nums>]
+                ARRAY2 [list<arr>,tpl]
+                ARRAY3 [start,count<(num<=start)|string>|tpl,step|tpl,tpl] 
+                OBJ {start,count|end,step,tpl}
+            **/
             // clean : true
-            // rescene : [19,20]
-            // exchange:{10:20, nosvg: true}
-            // exchange:{10:20}
-            create :{start: 10, count:18}
+            // move : {0:0}, // 0 -> 10
+            // move : [0,10],// 0...end -> +10
             // move : {start:10, to:20}
-            //  create :{start: 10, count:1, tpl : '3x2'}
-            //  create :{list: [10],   tpl : '3x2'}
+            // move : {start:10, to:20, end:20}
+            // move : {start:10, end:20, TO:30}
+            // rescene : [19]//19->текущ  
+            // rescene : {10:true}//FROM->TO ; 
+            // exchange:{10:20, svg: false} 
+            // create : [10,20] 
+            // create : [[10,20],'3x2'] // list:[10,20], tpl:'3x2; 
+            // create :{start: 10, count:18}
+            // create :{start: 10, count:1, tpl : '3x2'}
+            // create :{list: [10],   tpl : '3x2'}
         };`, (err) => { if (err) errorLog(err); });
     }
 
@@ -224,4 +248,5 @@ try {
 
 } catch (error) {
     errorLog(error)
+	setTimeout(()=>{},10000) 
 }

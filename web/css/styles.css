@@ -47,9 +47,11 @@ a:hover{
     vertical-align: middle;
 }
 
-/* #pages-container{
-    margin-right: var(--sidebar-width);
-} */
+#pages-container{
+    /* margin-right: var(--sidebar-width); */
+    counter-reset: pageTotal;
+    counter-reset: pageNum;
+}
 
 .page-block{
     display:inline-block;
@@ -165,6 +167,32 @@ a.saveBtn {
     height:200px;
 
 }
+#consoleBox{
+    width:var(--sidebar-width);
+    position: relative;
+    z-index : 400;
+    height:200px;
+}
+#consoleBox .conoleOuter{
+    position: absolute;
+    height:200px; 
+    top:0;
+    right: 0;
+    z-index : 401;
+    padding-left: 5px;
+    min-width:calc( var(--sidebar-width)  + 5px );
+    box-sizing: border-box;
+}
+#consoleBox .conoleOuter::before{
+    content: "";
+    width: 5px;
+    height:200px;
+    cursor: e-resize;
+    display: inline-block;
+    position: absolute;
+    left: 0;
+    background-color: #fff;
+}
 #sidebar #console{
     /* position: fixed;
     right: 0;
@@ -172,10 +200,11 @@ a.saveBtn {
     font : var(--frame-font);
     font-size : calc( var(--frame-fontSize) * var(--page-zoom) * 1px );
     color: #000;
-    z-index : 400;
-    width:var(--sidebar-width);
+    /* width:calc(100% - 5px); */
     height:200px;
-    background: #ccc;
+    background: #ccc; 
+    box-sizing: border-box;
+    
 }
 
  .btn{
@@ -343,6 +372,13 @@ a.saveBtn {
 
 .pageController {
     border-top: 1px dashed;
+    counter-increment: pageTotal; 
+}
+.pageController::before{
+    counter-increment: pageNum;
+    content: counter(pageNum) ": ";
+    color: #ccc;
+    color: "";
 }
 .pageController .btn{
     margin:5px;

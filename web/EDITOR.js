@@ -63,13 +63,16 @@ EDITOR = {
                     EDITOR.ui.input.item.value =  Array.prototype.map.call(cur.children, span => span.textContent ).join('\n')
                 break;
                 case 'TextStyle':  
-                    EDITOR.ui.input.item.value = cur.parentNode.closest('text').style.cssText.replace(/;\s*/g,';\n'); 
+                    EDITOR.ui.input.item.value = cur.parentNode.closest('text')?.style.cssText.replace(/;\s*/g,';\n'); 
                 break;
                 case 'TSpanStyle':  
-                EDITOR.ui.input.item.value = cur.parentNode.closest('tspan').style.cssText.replace(/;\s*/g,';\n'); 
+                EDITOR.ui.input.item.value = cur.parentNode.closest('tspan')?.style.cssText.replace(/;\s*/g,';\n'); 
                 break;
                 case 'svg':   
                 EDITOR.ui.input.item.value = EDITOR.current.svg.outerHTML
+                break;
+                case 'allText':   
+                EDITOR.ui.input.item.value = Array.prototype.map.call(EDITOR.current.svg.querySelectorAll('text'), text =>  Array.prototype.map.call(text.children, text => text.textContent ).join('\n') ).join('\n\n=======\n\n')
                 break;
                 default: 
                     EDITOR.ui.input.item.value = cur.getAttribute(this.value);
@@ -118,6 +121,8 @@ EDITOR = {
                     EDITOR.current.svg=EDITOR.current.node=parentNode.querySelector('svg')
                     EDITOR.drawTree()
                 break;
+                case 'allText':
+                    break
                 case 'x':
                 case 'y':
                     if(cur.tagName==='text'){
@@ -139,21 +144,45 @@ EDITOR = {
         EDITOR.setBTN('textanchor',{dataset:{anchor:'start'}},'⭰');
         EDITOR.setBTN('textanchor',{dataset:{anchor:'middle'}},'⏚');//⭾
         EDITOR.setBTN('textanchor',{dataset:{anchor:'end'}},'⭲');
-        EDITOR.setBTN('divtotext',{disabled: true},'⬖');
+        EDITOR.setBTN('lineheight',{disabled: false},'⬖');
+        // EDITOR.setBTN('divtotext',{disabled: true},'⬖');
         // EDITOR.setBTN('saveBtn_click',{}, '⛁');//⛁⮯⛀
         EDITOR.setBTN('repair',{}, '⚒');
         EDITOR.setBTN('reloadfeame',{}, '⭮');
         // EDITOR.setBTN('reloadImg',{ dataset:{titles  : String.fromCharCode( '\f2f1' ) }, textContentw:String.fromCharCode( '\f2f1' )  } ,'⮸');//'&#xf01e'
-        addEventListener('FrameClick',ev=>{
-            dQ('.btn[data-action="divtotext"]').toggleAttribute('disabled', EDITOR.current.active.tagName !== 'DIV');
-        })
-        EDITOR.ui.console = TEXTAREA({
+        // addEventListener('FrameClick',ev=>{
+        //     dQ('.btn[data-action="divtotext"]').toggleAttribute('disabled', EDITOR.current.active.tagName !== 'DIV');
+        // })
+        var consoleOuter = DIV({className:'conoleOuter'})
+        EDITOR.ui.consoleBox = DIV({
             parentNode: EDITOR.sidebar,
+            id:"consoleBox"
+        },consoleOuter)
+        EDITOR.ui.console = TEXTAREA({
+            parentNode: consoleOuter,
             id : 'console', 
         });
         EDITOR.ui.console.addEventListener('change',EDITOR.consoleInput)
         EDITOR.ui.console.addEventListener('input',EDITOR.consoleInput)
         EDITOR.ui.console.addEventListener('paste',EDITOR.consoleInput)
+        consoleOuter.addEventListener('mousedown',function(ev){
+            console.log(ev);
+            if(ev.layerX < 5){
+                var consoleOuter = this;
+                var baseW = EDITOR.ui.consoleBox.offsetWidth;
+                var r = EDITOR.ui.consoleBox.getBoundingClientRect()
+                var sizeFunc = function(ev){
+                    var d = r.x - ev.clientX;
+                    console.log(d,r.x, ev.clientX)
+                    EDITOR.ui.console.style.width = d>5 ? (baseW + d)+"px" : "";
+                }
+                document.addEventListener('mousemove',sizeFunc)
+                document.addEventListener("mouseup",ev=>{
+                    console.log('rm')
+                    document.removeEventListener('mousemove',sizeFunc)  
+                },{once:true})
+            }
+        })
 
         document.addEventListener('keydown',function(ev){
             var prevent = false;
@@ -181,7 +210,40 @@ EDITOR = {
             case 'text':
                 if(data.tagName === 'text')
                 
-                    EDITOR.ui.console.value = Array.prototype.map.call(data.children, span => span.textContent ).join('\n');
+                    EDITOR.ui.console.value = Array.prototype.map.call(data.children, 
+                        span => {
+                            var innerHTML = span.innerHTML;
+                            if(innerHTML.indexOf('<tspan')!==-1){
+                                innerHTML = "";
+                                var toString = (childNodes)=>{
+                                    var str = "";
+                                    for(let n of childNodes){
+                                        if(n.nodeType === 3)str+=n.textContent;
+                                        else {
+                                            if(n.attributes.length===1 && n.attributes.class){
+                                                var ctx = toString(n.childNodes);
+                                                var bolditalic = n.classList.contains('boldItalic') || n.classList.contains('italic')&&n.classList.contains('bold')
+                                                var italic = n.classList.contains('italic')
+                                                var bold = n.classList.contains('bold')
+                                                if(bolditalic) ctx = '<bi>' + ctx + '</bi>'
+                                                else{
+                                                    if(italic) ctx = '<i>' + ctx + '</i>'
+                                                    if(bold) ctx = '<b>' + ctx + '</b>'
+                                                }
+                                                
+                                                str+=ctx;
+                                            }else str+=n.outerHTML;
+                                        }
+                                    }
+                                    return str;
+                                }
+                                innerHTML = toString(span.childNodes)
+                            }
+                            return innerHTML
+                        }
+                         ).join('\n');
+                // else if(data.tagName === 'tspan')
+
                 else
                     EDITOR.ui.console.value = data.innerHTML.replace(/((<\/tspan>)|(<br[\/]{0,1}>))/gi,'\n').replace(/(<[^>]+>)/g,'')
             break;
@@ -189,8 +251,15 @@ EDITOR = {
     },
     consoleInput(ev){
         var cur = EDITOR.current.consoleNode,
-        v = EDITOR.ui.console.value;;
-        if(cur && cur.tagName === 'text'){
+        v = EDITOR.ui.console.value;
+        switch(cur && cur.tagName ){
+            case 'text': {
+                if(v.indexOf('<')!==-1)
+                v = v.replace(/(<bi>)/g,'<tspan class="boldItalic">')
+                        .replace(/(<b>)/g,'<tspan class="bold">')
+                        .replace(/(<i>)/g,'<tspan class="italic">')
+                        .replace(/(<\/bi>)|(<\/i>)|(<\/b>)/g,'</tspan>')
+
             var x = +cur.getAttribute('x');
                     var y = +cur.getAttribute('y');
                     var fontSize = parseInt(getComputedStyle(cur).fontSize) || PROJECT.styles.FRAME.fontSize; 
@@ -198,10 +267,21 @@ EDITOR = {
                     console.log(lh,fontSize)
                     v = v.split(/\n/);
                     var i = 0, ch = cur.children;
-                    for(;i<v.length; i++)
-                        if(ch[i])ch[i].textContent = v[i];
-                        else SVG('tspan',{parentNode:cur,x :x,y:y+i*lh,textContent:v[i]});
+                    if(ch.length>1){
+                        lh = (+ch[ch.length-1].getAttribute('y')-ch[ch.length-2].getAttribute('y')) || lh
+                    }
+                    i = 0;
+                    for(;i<v.length; i++){
+                        let e = ch[i] || SVG('tspan',{parentNode:cur,x :x,y:y+i*lh});
+                        e.innerHTML = v[i]; 
+                    }
+                        
                     for(;i<ch.length; i++)ch[i].remove();
+                break
+                }
+                case "style":{
+                    cur.appendChild(TextNode(v)); 
+                }
         } 
     },
     createSVG(d){
@@ -253,6 +333,7 @@ EDITOR = {
 				<defs id="defs2">
 					<style id="style5694"> 
                         svg.framesvg text, svg.framesvg div, svg.framesvg textarea, svg.framesvg p, svg.framesvg flowPara{${ PROJECT.styles.FRAME.svgFont }; }
+                        svg.framesvg .italic{font-style:italic} svg.framesvg .bold{font-weight:700} tspan.boldItalic{font-style:italic; font-weight:700}
 
 					</style>
 				</defs> 
@@ -280,7 +361,7 @@ EDITOR = {
 			switch(t.type){
 				case 'text':
                     if(t.cleanedHTML){
-                        p = EDITOR.DOMParser.parseFromString(svgTag+t.cleanedHTML+'</svg>', "image/svg+xml").documentElement.firstChild;
+                        p = EDITOR.DOMParser.parseFromString(svgTag+t.cleanedHTML+'</svg>', "image/svg+xml").documentElement.lastElementChild;
                         // totdo: clean
                         if(p.tagName === 'text' && !p.querySelector('parsererror')){
                             svg.appendChild(p);
@@ -456,8 +537,8 @@ EDITOR = {
     actions : {
         Frame_click : function(ev){
             var svg = ev.target.closest('svg'),
-            textTag = svg && ev.target.closest('svg div, text');
-            if(!svg&&!textTag)return;
+            textTag = svg && ev.target.closest('svg div, text, svg style');
+            if(!svg && !textTag)return; 
                 svg.parentNode.toggleAttribute('contenteditable',true);
                 // svg.setAttributeNS(null, 'contenteditable', true);
                 var selection = window.getSelection();
@@ -499,8 +580,16 @@ EDITOR = {
             if(textTag){
                 EDITOR.console('text',textTag);
                 EDITOR.last.active = EDITOR.current.active;
-                if(EDITOR.last.active && ev.detail!=='insertText')
-                    EDITOR.cleanSVGText(EDITOR.last.active);
+                if(EDITOR.last.active && ev.detail!=='insertText'){
+                    // let isText = textNode.nodeType === 3;
+                    // if(isText)textNode = textNode.parentNode;
+                    // var uid = 'i'+Date.now();
+                    // textNode.setAttribute('id',uid) 
+                    EDITOR.cleanSVGText(EDITOR.last.active,true); 
+                    // textNode = textTag.querySelector('#'+uid);
+                    // textNode.removeAttribute('id') 
+                    // if(isText)textNode = textNode.firstChild;
+                    }
                 EDITOR.last.selected = [].concat(EDITOR.current.selected);
                 EDITOR.current.active = textTag;
                 EDITOR.current.selected = [];
@@ -516,6 +605,7 @@ EDITOR = {
             dispatchEvent(new CustomEvent( 'FrameClick' ))
 
 			console.log(ev.target,ev)
+            
 		},
         Frame_keypress : function(ev){
             var selection = window.getSelection();
@@ -824,7 +914,7 @@ EDITOR = {
             svg_orig.parentNode.classList.remove( 'notSaved');
         },
         movetext(){
-            var value = prompt().match(/[^,\.:]+/g)||[];
+            var value = window.prompt().match(/[^,\.:]+/g)||[];
             var data = {x:false,y:false};
             var type = "d";
             var o = "x";
@@ -870,9 +960,17 @@ EDITOR = {
                 EDITOR.changeFrame(svg);
             } 
         },
+        lineheight(cur,value){
+            var safe = cur instanceof Element;
+                cur = safe ? cur : EDITOR.current.active;
+                value = value || +window.prompt();
+                cur.querySelectorAll('tspan').forEach((e,i)=>e.setAttribute('y',(value*(i+1))))
+                if(!safe)EDITOR.changeFrame();
+        },
         // div => text
-        divtotext(){ 
-                var cur = EDITOR.current.active;
+        divtotext(cur){ 
+            var safe = cur instanceof Element;
+                cur = safe ? cur : EDITOR.current.active;
             if(cur&&cur.tagName === 'DIV'){
                var svg = EDITOR.current.svg;
                var fontSize = parseInt(getComputedStyle(cur).fontSize) || PROJECT.styles.FRAME.fontSize;
@@ -915,8 +1013,13 @@ EDITOR = {
                 });
                 // TODO: рассчёт длины: выдиление - начало, выдиление +. Если, расстояние больше - найти пробел и сэметировать нажатие enter
                 cur.remove();
-                text.dispatchEvent(new CustomEvent('click',{bubbles:true}));
-                EDITOR.changeFrame();
+                if(safe){
+
+                }else{
+                    text.dispatchEvent(new CustomEvent('click',{bubbles:true}));
+                    EDITOR.changeFrame();
+                }
+                return text;
             }
         },
         textanchor(){
@@ -930,6 +1033,7 @@ EDITOR = {
             EDITOR.actions.reloadImg();
             EDITOR.current.svg.parentElement.toggleAttribute('contenteditable',false)
             EDITOR.current.selected.forEach(text=>{
+                if(text.tagName === 'DIV')text = EDITOR.actions.divtotext(text)
                 EDITOR.cleanSVGText(text);
                 // text.toggleAttribute('contenteditable',false)
                 text.setAttribute('x',~~(+text.getAttribute('x')));
@@ -938,6 +1042,7 @@ EDITOR = {
                     tspan.setAttribute('x',~~(+tspan.getAttribute('x')));
                     tspan.setAttribute('y',~~(+tspan.getAttribute('y')));
                     var t = tspan.innerHTML; 
+                    // t.replace('\x06','')
                     if(trim)t= t.trim();
                     tspan.innerHTML = t;
                 })
@@ -945,6 +1050,7 @@ EDITOR = {
                 
             });
             EDITOR.current.svg.parentElement.toggleAttribute('contenteditable',true)
+            EDITOR.changeFrame();
         },
         reloadfeame(trim){//TODO: обновлять из локального файла
             // EDITOR.current.svg.parentElement.toggleAttribute('contenteditable',false)
@@ -994,7 +1100,7 @@ EDITOR = {
                     props.push('textContent');
                     break
                     case 'svg': 
-                    props.unshift('svg');
+                    props.unshift('svg','allText');
                     break
                 } 
                 var A = cur.attributes;
@@ -1334,7 +1440,7 @@ EDITOR = {
             tspan_sel.focus()
         }  
     },
-    cleanSVGText(text){
+    cleanSVGText(text, safe){
         // Убиваем пустые в конце
         Array.from(text.children).reverse().find((tspan)=>{ 
             if(tspan.textContent.trim()){
@@ -1348,8 +1454,17 @@ EDITOR = {
         if(text.children.length === 0)text.remove()
         else{ 
             text.style.cssText = PROJECT.styles.FRAME.svgFont + ';' + text.style.cssText;
+            
             Array.from(text.children).forEach(tspan=>{
-                tspan.textContent = tspan.textContent.replace(/(&nbsp;|\s)/g,' ').trim();
+                if(safe){
+                    if(tspan.firstChild.nodeType === 3){
+                        tspan.firstChild.textContent = tspan.firstChild.textContent.trimLeft()
+                    }
+                    if(tspan.lastChild.nodeType === 3){
+                        tspan.lastChild.textContent = tspan.lastChild.textContent.trimRight()
+                    }
+                }else
+                tspan.innerHTML = tspan.innerHTML.replace(/(&nbsp;|\s)/g,' ').trim();
             });
         }
     

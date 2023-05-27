@@ -118,7 +118,9 @@ move : function(options,filter){//start,end,step,s=10
 		options = fs.readFileSync('lastRenameList.json')
 		options = JSON.parse(options).map(it=>it.reverse())
 	}
-	if(Array.isArray(options) && Array.isArray(options[0]))dict = options;// [[from,to]]
+	if(Array.isArray(options) && Array.isArray(options[0])){
+		dict = options;// [[from,to]]
+	}
 	else if(Array.isArray(options) || ('start' in options)){//[start,end,to,step=10] || {start : ...,}
 		var to_abs, saveSteps = false;
 		if(Array.isArray(options)){
@@ -361,7 +363,7 @@ exchange(options){
 		// DO.move(opt)
 	 }
 
-	 if(opt.nosvg)opt.exclude = 'svg'; //
+	 if(opt.nosvg || opt.svg === false)opt.exclude = 'svg'; //
 
 	 
 	 for(let d in dict){
@@ -373,9 +375,11 @@ exchange(options){
 
 		reg = new RegExp('(^(' + PREF_ +  from + ')((_en)|~|(_bg)){0,1}\.\[a-z~]+$)','i')
 		let list = files.filter(f=>reg.test(f));  
-		if(opt.filter instanceof RegExp)list = list.filter(f=>opt.filter.test(f));  
+		if(opt.filter instanceof RegExp)list = list.filter(f=>opt.filter.test(f)); 
+
 		if(opt.exclude instanceof RegExp)list = list.filter(f=>!opt.exclude.test(f));  
 		else if(typeof opt.exclude === 'string')list = list.filter(f=>f.indexOf(opt.exclude)===-1);  
+		
 		if(opt.include instanceof RegExp)list = list.filter(f=>opt.include.test(f));  
 		else if(typeof opt.include === 'string')list = list.filter(f=>f.indexOf(opt.include)!==-1);  
 
@@ -409,24 +413,40 @@ exchange(options){
 },
 // Создаие новых кадров (аналог move : [Num1,Num2,Num3...] или {start,count,end,step} )
 create : function(o){infoLog(`create`); 
-	console.log(o);
+	console.log(par);
 	var $tpl = 'frame';
 	var $f = [];
-	if(Array.isArray(o)){//список имён
-		if(o[1]<o[0]&&o[1]<50 || typeof o[1] === 'string'){//[170,12] || [170,'12']; 50 за раз - ограничение, чтобы не нафигачил снова несколько тысяч из-за опечатеи 
-			let start = o[0], count=parseInt(o[1]), step = o[2] || 10;
-			$f = Array.from({length:count},(v,i)=>( start + i*step ));
-		}else{//[170,180...] 
-			$f = o;
+	var par = o;
+	
+	if(Array.isArray(o)){//список имён 
+		if(o[0] instanceof Array){
+			par = {list:o[0]}
+			if(typeof o[1] === "string"){par.tpl = o[1];}
+		}else
+		if( o[1]<=o[0] || typeof o[1] === 'string'){//[170,12] || [170,'12']; 50 за раз - ограничение, чтобы не нафигачил снова несколько тысяч из-за опечатеи 
+			par = {start:o[0], count: 1} 
+			if(isNaN(+o[1]))
+			{
+				par.tpl = o[1];
+			}else{
+				par.count = +o[1];
+			}
+			if(typeof o[2] === "number"){par.step = o[2];}
+			if(typeof o[2] === "string"){par.tpl = o[2];}
+			else if(typeof o[3] === "string"){par.tpl = o[3];} 
+		}else{//[170,180...] .. [[10,20]]  
+			par = {list:o}
 		}
-	}else {
+	} 
+
 		// let o = o;
-		console.log(o)
-		if(o.list&&o.list.length>0)$f = $f.concat( o.list ).sort();
-		else if(('start' in o) || ('count' in o)){
-			let start = o.start, step = o.step || 10;
+		console.log(par)
+		if(par.list&&par.list.length>0)$f = par.list.flat().sort();
+		else if(('start' in par) || ('count' in par)){
+			if(par.count > 50 )return;//Защита от опечатки
+			let start = par.start, step = par.step || 10;
 			if(!start || start === '+'){
-				start = 10;
+				start = step;
 				var files = fs.readdirSync(dir);
 				let reg = new RegExp(project.fileNumMask); 
 				files.forEach(f=>{//Получаем список номеров файлов от start до end (или до конца)
@@ -434,19 +454,25 @@ create : function(o){infoLog(`create`);
 					if(n&&n[1]) start = Math.max(start,+n[1]+step); 
 				}); 
 			}
-			let  end = o.end || (start + (o.count-1) * step); 
-			if(end)
-			for(var t = start; t<= end; t+=step)$f.push( t );
+			// let  end = par.end || (start + (par.count-1) * step); 
+			// if(end)
+			// for(var i = start; i<= end; i+=step)$f.push( i );
+			// let count = par.count || Math.round( (start - par.end + step)/step ) 
+			if(par.count)
+				$f = Array.from({length:par.count},(v,i)=>( start + i*step ));
+			else if(par.end){
+				$f = [];
+				for(var i = start; i<= par.end; i+=step)$f.push( i );
+			}
 		}	
 		
 
 		console.log($f);
 
-		if(o.tpl){
-			if( o.tpl == +o.tpl || o.tpl[0] == +o.tpl[0] )$tpl+=o.tpl;//Суффикс 1,2 ...
-			else $tpl = o.tpl;
-		}
-	}  
+		if(par.tpl){
+			if( par.tpl == +par.tpl || par.tpl[0] == +par.tpl[0] )$tpl+=par.tpl;//Суффикс 1,2 ...
+			else $tpl = par.tpl;
+		} 
 	var tplPNG = project.dataDir + '/template/' + $tpl + '.png';
 	var tplKRA = project.dataDir + '/template/' + $tpl + '.kra';
 	for(let n of $f){
@@ -464,9 +490,42 @@ create : function(o){infoLog(`create`);
 	 
 	cb( )
 },  
-// Меняет номер сцены в имени файлов [с,по]
+// Меняет номер сцены в имени файлов [с,по] shift - смещение номеров sceneNumя {32:31,33:true}
 rescene : function(o){
-	let [from,to,shift]= o;console.log([from,to])
+	if(o instanceof Array){
+		var  [from,to = true,shift]= o; console.log([from,to])
+
+	}else if(typeof o === "object"){
+		var {from,to = o.TO || true,shift = o.step} = o;
+		if(!from){
+			from = []
+			for(var i in o)if(i==+i)from.push(
+				[+i, o[i],shift]
+			)
+	   	}
+		
+		
+	}
+	if(from instanceof Array){ 
+		if(from.length === 1 ){
+			from = from[0];
+			if(from instanceof Array){
+				from = from[0]
+				to = from[1] || to
+				shift = from[2] || shift
+			}
+		}
+		else {
+			for(let fr of from){
+				let r = [fr, to, shift];
+				if(fr instanceof Array)Object.assign(r,fr)
+				DO.rescene(r)
+			}
+			return;
+		}
+			
+	} 
+	if(!to || to === true)to = sceneNum
 	var files = fs.readdirSync(dir);
 	var _f = new RegExp('(\\.'+from +'\\.)'),_t=`.${to}.`;
 	files.forEach(f=>{
@@ -628,5 +687,6 @@ for(var a in A)if(typeof DO[a] === 'function')DO[a](A[a]);
 
  setTimeout(()=>infoLog('done'),2000);  
 } catch (error) {
-	errorLog(error)
+	errorLog(error);
+	setTimeout(()=>{},10000)
 }
