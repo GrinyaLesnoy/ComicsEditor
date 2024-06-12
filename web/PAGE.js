@@ -925,12 +925,18 @@ PAGE = {
 				className:'frameController',
 				parentNode:fra
 			})
-			
-			INPUT({className:'h3', readonly : true, value : frm.name, parentNode:ctrlBox }).addEventListener('click',(ev)=>{
+			var fileName = frm.name, ni = fileName.lastIndexOf('/')
+			if(ni!==-1)fileName = fileName.substring(ni+1)
+			INPUT({className:'h3', readonly : true, title: frm.name, value : fileName, parentNode:ctrlBox }).addEventListener('click',(ev)=>{
 				ev.target.select();
-				EDITOR.clipboardName(ev.target.closest('.frame').dataset.scene,ev.target.value,ev.ctrlKey,ev.shiftKey)
+				var frame = ev.target.closest('.frame')
+				EDITOR.clipboardName(
+					frame.dataset.scene,
+					ev.target.getAttribute('title'),
+					ev.ctrlKey,ev.shiftKey
+				)
 			})
-			ALink({className:'saveBtn', dataset : {name:frm.name}, download : frm.ctxData.svgName, parentNode:ctrlBox},'Сохранить')
+			ALink({className:'saveBtn', dataset : {name:frm.name}, download : fileName+'.svg', parentNode:ctrlBox},'Сохранить')
 			.addEventListener('click',EDITOR.actions.saveBtn_click)
 
 			// var paddingX = scale*frm.imgPos[2] - frm.imgPos[6];

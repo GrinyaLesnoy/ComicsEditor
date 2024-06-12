@@ -16,6 +16,7 @@ const getProject = (dir)=>{
             let rootPath = path.posix.join(_root , 'project.json')
             if(fs.existsSync(rootPath)){
                 projectData = JSON.parse( fs.readFileSync(rootPath, 'utf8') )
+				console.log('projectData')
                 break;
             }
             _root = path.dirname(_root);
@@ -23,9 +24,8 @@ const getProject = (dir)=>{
         }
         
         projectData.fileNumMask = new RegExp( projectData.fileNumMask);
-        projectData.sceneNameMask = new RegExp(projectData.sceneNameMask);
-       
-        projectData._MIN = +(projectData.frameName.match(/%count:(\d)*%/)||[0,4])[1];
+        projectData.sceneNameMask = new RegExp(projectData.sceneNameMask); 
+        projectData._MIN = +(projectData.frameName.match(/%count:(\d)*%/)?.[1]||4) ;
         projectData.sceneInfo = {}
         
         projectData.root = path.posix.join(_root,projectData.root || '.')
@@ -34,8 +34,11 @@ const getProject = (dir)=>{
     }
 
     if(!projectData.sceneInfo[dir]){
-        let item = {}
-        let dirName = path.posix.basename(dir);
+        let item = {}, dirName
+		if(dir.indexOf(projectData.scenesDir)===0){
+			dirName = dir.substring(projectData.scenesDir.length).replace(/^\//,'').split('/')[0]
+		}else
+        	dirName = path.posix.basename(dir); 
         let sceneNum = dirName.match(new RegExp(projectData.sceneNameMask))[1];
         if(sceneNum == +sceneNum)sceneNum = +sceneNum;
         item.sceneNum = sceneNum
@@ -754,7 +757,7 @@ fixName : function( dir ){
 	let confOldPath = path.join(dir,confOldName)
     const project = getProject(dir)
     let fileNumMask = project.fileNumMask;
-
+	console.log(dir)
     var LIST = [], DATA = {};
     let sceneJSONPath = path.join( dir, 'scene.json') 
 	if (fs.existsSync(sceneJSONPath)) {
@@ -766,20 +769,35 @@ fixName : function( dir ){
     var texts = {};
     var exclude = {}
 
-    var FLIST = fs.readdirSync(dir).filter(f => {
+	let ffilterf = f => {
         if (/(~|(_bg))/i.test(f)) {
             if (!/(~$)/.test(f))//-бэкапы
                 exclude[f.replace(/(~)/g, '').slice(0, -3)] = f;
             return false;
         }
-        return f.indexOf('.') !== -1;
-    })
+        return fs.lstatSync(f).isFile() ;
+    }
+
+    var FLIST = fs.readdirSync(dir).filter(ffilterf)
         .filter(f => !exclude[f.slice(0, -3)]);
-    infoLog(dir,JSON.stringify(exclude))
+
+	if(DATA.scene.scenesList)
+		DATA.scene.scenesList.forEach(sc=>{
+	
+		if(fs.existsSync(sc) && fs.lstatSync(sc).isDirectory()){
+			exclude = {}
+			FLIST = FLIST.concat(fs.readdirSync(dir + '/' +sc ).map(f=>sc + '/' + f)
+			.filter(ffilterf)
+			.filter(f => !exclude[f.slice(0, -3)]))
+		}
+	})
+
+    infoLog(dir,JSON.stringify(FLIST))
     // GET TEXTS
-    FLIST.filter(f => f.slice(-3) === 'svg' && !/([_en|~])/.test(f))
+    FLIST.filter(f => f.slice(-3) === 'svg' && !/([~])/.test(f))
         .forEach(f => {
             let svg = fs.readFileSync(path.join(dir,f), 'utf8');
+			console.log(f)
             // let list = (svg.match(/<((flowPara)|(text))[^>]*>(([^(<\/flowPara)>)])*)<\/((flowPara)|(text))>/g) || []);
             let list = [], sI = 0, eI = 0, str = svg, close_tag;
             while (true) {
@@ -906,7 +924,10 @@ let commands = [
 	"getSceneData",
 	// "clean"
 ];
-module.exports = commands; 
+module.exports = {
+	// path: "",
+	commands : commands
+};  
 //module.exports = commands[0]; 
 `;
 
@@ -914,6 +935,20 @@ const run = (dir, A) => {
 	let confPath = path.join(dir,confName)
 	let confOldPath = path.join(dir,confOldName)
 	let DATA = {}
+	if(!fs.existsSync(confPath) &&!fs.existsSync(confOldPath) ){
+		let trueDir = dir;
+		while(trueDir &&  path.dirname(trueDir)!==trueDir){
+			if(fs.existsSync(confPath)  || fs.existsSync(confOldPath)){
+				dir = trueDir
+				break
+			}else{
+				let trueDir = path.dirname(trueDir)//path.basename(path.dirname(trueDir))
+				confPath = path.join(trueDir,confName)
+				confOldPath = path.join(trueDir,confOldName)
+			}
+		}
+	}
+	
     try{
         infoLog(dir,'start');
 		let sceneJSONPath = path.join( dir, 'scene.json') 
@@ -944,21 +979,27 @@ const run = (dir, A) => {
     infoLog(dir,A);
     // if(A instanceof Array)for(var d of A)if(typeof DO[d[0]] === 'function')DO[d[0]](d[1]);
     // else 
+	let workDir = dir;
     let _proxy = (a,par)=>{
         console.log(a,par)
-        if(typeof DO[a] === 'function')DO[a](dir,par); 
+		let d = a === "getSceneData"? dir: workDir
+        if(typeof DO[a] === 'function')DO[a](d,par); 
     }
     if(A instanceof Array)for(let a of A){
         if(typeof a === "string")_proxy(a);
         else for(let b in a)_proxy(b,a[b]);
     }else if(A.commands){
+		if(A.path)workDir = workDir + "/" + A.path
         for(let a of A.commands){
             if(typeof a === "string")_proxy(a, A[a]);
             else for(let b in a)_proxy(b,a[b]);
         }
     }
-    else
-    for(var a in A)_proxy(a,A[a]);
+    else{
+		if(A.path)workDir = workDir + "/" + A.path
+		for(var a in A)if(a!=="path")_proxy(a,A[a]);
+	}
+    
     // if(A.move)move(A.move); 
     // if(A.create) Array.isArray(A.create) ? create.apply(null,A.create) : create(A.create); 
     // if(A.rescene) rescene.apply(null,A.rescene); 

@@ -46,7 +46,10 @@ EDITOR = {
         EDITOR.ui.input.name.addEventListener('click',ev=>{
             ev.target.select()
             
-            EDITOR.clipboardName(EDITOR.current.sceneName, ev.target.value,ev.ctrlKey,ev.shiftKey)
+            EDITOR.clipboardName(
+                EDITOR.current.sceneName, 
+                ev.target.value,
+                ev.ctrlKey,ev.shiftKey)
         })
         
         EDITOR.setBTN('saveBtn_click',{className: 'valignMiddle', parentNode:nameInputBox}, '⛁');//⛁⮯⛀
@@ -1021,7 +1024,8 @@ EDITOR = {
             var svg_orig = frame ? frame.querySelector('svg') : EDITOR.current.svg;
             
             var svg = svg_orig.cloneNode(true);
-            var name = svg.getAttribute('name');
+            frame = frame || svg.closest('.pageData .frame');
+            var name = frame.getAttribute('name');
             var sceneName = frame?.dataset.scene || EDITOR.current.sceneName;
             EDITOR.clipboardName(sceneName,name,ev.ctrlKey,ev.shiftKey)
             svg.removeAttribute('name');
@@ -1705,7 +1709,9 @@ EDITOR = {
 						}
 					});
 					src = decodeURIComponent(pathname.join(navigator.userAgentData.platform === 'Windows' ? '\\':'/'))
-				} 
+				}else{
+                    src = src.split('/').pop()  
+                }
 				navigator.clipboard.writeText(src).then(function() {
 					/* clipboard successfully set */
 				  }, function() {
