@@ -14,6 +14,7 @@ EDITOR = {
     },// пред выделенные
     buffer : [],
     cache: {},
+    sysPathD : /^(m \d+,-1\d0 -20,-*40 ((-20,)|(h ))40 z)$/,
     Init (){
         EDITOR.sidebar = DIV({id:'sidebar', parentNode:document.body});
         EDITOR.sidebar.addEventListener('click',function(ev){
@@ -45,38 +46,63 @@ EDITOR = {
         EDITOR.ui.input.name.addEventListener('click',ev=>{
             ev.target.select()
             
-            EDITOR.clipboardName(ev.target.value,ev.ctrlKey,ev.shiftKey)
+            EDITOR.clipboardName(EDITOR.current.sceneName, ev.target.value,ev.ctrlKey,ev.shiftKey)
         })
         
         EDITOR.setBTN('saveBtn_click',{className: 'valignMiddle', parentNode:nameInputBox}, '⛁');//⛁⮯⛀
         EDITOR.ui.input.prop = SELECT({className:'width100', name:"prop", parentNode:EDITOR.sidebar});
         EDITOR.ui.input.prop.addEventListener('change',function(){
-            var cur = EDITOR.current.node;
+            var cur = EDITOR.current.node, v='';
             switch(this.value){
                 case 'style': 
-                    EDITOR.ui.input.item.value = cur.style.cssText.replace(/;\s*/g,';\n'); 
+                    v = cur.style.cssText.replace(/;\s*/g,';\n'); 
                 break;
                 case 'textContent': 
-                    EDITOR.ui.input.item.value = cur.textContent; 
+                    v = cur.textContent; 
                 break;
                 case 'setContent':  
-                    EDITOR.ui.input.item.value =  Array.prototype.map.call(cur.children, span => span.textContent ).join('\n')
+                    v =  Array.prototype.map.call(cur.children, span => span.textContent ).join('\n')
                 break;
                 case 'TextStyle':  
-                    EDITOR.ui.input.item.value = cur.parentNode.closest('text')?.style.cssText.replace(/;\s*/g,';\n'); 
+                    v = cur.parentNode.closest('text')?.style.cssText.replace(/;\s*/g,';\n'); 
+                break;
+                case 'textRotate':  
+                
+                    // matrix(a,b,c,d,e,f)
+                   /*  a c e
+                    b d f
+                    0 0 1 */
+                    /* cos a -sin a 0
+                    sin a cos a 0
+                    0 0 1 */
+                    // matrix(cosa sina -sina cosa 0 0)
+                    // translate - matrix(1 0 0 1 x y)
+                    // translate(<x>, <y>) rotate(<a>) translate(-<x>, -<y>) 
+                    let textElem = cur.parentNode.closest('text')
+                    let  transform = textElem && (textElem.getAttribute('transform') || textElem.style.transform);
+                    if(transform){
+                        if(transform.indexOf('rotate')!==-1){
+                            v = transform.match(/rotate\(\s*(-{0,1}\d+)[^\)]+\)/)[1].trim()
+                        }else if(transform.indexOf('matrix')!==-1){
+                            let ca = transform.match(/matrix\(([^\)]+)\)/)[1].trim().split(' ')[0]
+                            v = Math.acos(+ca) / Math.PI * 180;
+                        }
+                    }
+                //     v = cur.parentNode.closest('text')?.style.cssText.replace(/;\s*/g,';\n'); 
                 break;
                 case 'TSpanStyle':  
-                EDITOR.ui.input.item.value = cur.parentNode.closest('tspan')?.style.cssText.replace(/;\s*/g,';\n'); 
+                v = cur.parentNode.closest('tspan')?.style.cssText.replace(/;\s*/g,';\n'); 
                 break;
                 case 'svg':   
-                EDITOR.ui.input.item.value = EDITOR.current.svg.outerHTML
+                v = EDITOR.current.svg.outerHTML
                 break;
                 case 'allText':   
-                EDITOR.ui.input.item.value = Array.prototype.map.call(EDITOR.current.svg.querySelectorAll('text'), text =>  Array.prototype.map.call(text.children, text => text.textContent ).join('\n') ).join('\n\n=======\n\n')
+                v = Array.prototype.map.call(EDITOR.current.svg.querySelectorAll('text'), text =>  Array.prototype.map.call(text.children, text => text.textContent ).join('\n') ).join('\n\n=======\n\n')
                 break;
                 default: 
-                    EDITOR.ui.input.item.value = cur.getAttribute(this.value);
+                    v = cur.getAttribute(this.value);
             }
+            EDITOR.ui.input.item.value = v;
             EDITOR.changeFrame();
         })
         EDITOR.ui.input.item = TEXTAREA({className:'width100', name:"item", parentNode:EDITOR.sidebar});
@@ -93,6 +119,37 @@ EDITOR = {
                     cur.parentNode.closest('text').style.cssText = v.replace(/[\n|\r]/g,' '); 
 
                 break;
+                case 'textRotate':
+                    // matrix(a,b,c,d,e,f)
+                   /*  a c e
+                    b d f
+                    0 0 1 */
+                    /* cos a -sin a 0
+                    sin a cos a 0
+                    0 0 1 */
+                    // matrix(cosa sina -sina cosa 0 0)
+                    // translate - matrix(1 0 0 1 x y)
+                    // translate(<x>, <y>) rotate(<a>) translate(-<x>, -<y>) 
+                    // if(transform){
+                    //     if(transform.indexOf('rotate')!==-1){
+                    //         v = transform.match(/rotate\(([^\)+])\)/)[1].trim()
+                    //     }else if(transform.indexOf('matrix')!==-1){
+                    //         let ca = transform.match(/matrix\(([^\)+])\)/)[1].trim().split(' ')[0]
+                    //         v = Math.acos(+ca) / Math.PI * 180;
+                    //     }
+                    // }
+
+                    // let cosA = 
+                    v =  v.trim() || '0'; 
+                    let textElem = cur.parentNode.closest('text');
+                    if(v === '0' || isNaN(parseInt(v))){
+                        textElem.removeAttribute('transform')
+                    }else{
+                        textElem.setAttribute('transform',`rotate(${v})`)
+                    } 
+                    if(textElem.style.transform)textElem.style.transform = textElem.style.transform.replace(/rotate\([^\)]+\)/,'')
+
+                break;
                 case 'TSpanStyle':  
                     cur.parentNode.closest('tspan').style.cssText = v.replace(/[\n|\r]/g,' ');
                 break;
@@ -104,7 +161,7 @@ EDITOR = {
                     console.log('onChange',ev);
                     
                     var x = +cur.getAttribute('x');
-                    var y = +cur.getAttribute('y');
+                    var y = +(cur.firstElementChild || cur).getAttribute('y');
                     var fontSize = parseInt(cur.style.fontSize) || PROJECT.styles.FRAME.fontSize; 
                     var lh = fontSize * PAGE.styles.lineHeight; 
                     v = v.split(/\n/);
@@ -142,9 +199,10 @@ EDITOR = {
         // EDITOR.setBTN('remove',{},'X');
         EDITOR.setBTN('movetext',{anchor:'movetext'},'⇝');
         EDITOR.setBTN('textanchor',{dataset:{anchor:'start'}},'⭰');
-        EDITOR.setBTN('textanchor',{dataset:{anchor:'middle'}},'⏚');//⭾
+        EDITOR.setBTN('textanchor',{dataset:{anchor:'middle'}},'↔');//⭾
         EDITOR.setBTN('textanchor',{dataset:{anchor:'end'}},'⭲');
-        EDITOR.setBTN('lineheight',{disabled: false},'⬖');
+        EDITOR.setBTN('lineheight',{disabled: false},'↕');
+        EDITOR.setBTN('invert',{disabled: false},'⬖');
         // EDITOR.setBTN('divtotext',{disabled: true},'⬖');
         // EDITOR.setBTN('saveBtn_click',{}, '⛁');//⛁⮯⛀
         EDITOR.setBTN('repair',{}, '⚒');
@@ -165,6 +223,85 @@ EDITOR = {
         EDITOR.ui.console.addEventListener('change',EDITOR.consoleInput)
         EDITOR.ui.console.addEventListener('input',EDITOR.consoleInput)
         EDITOR.ui.console.addEventListener('paste',EDITOR.consoleInput)
+        EDITOR.ui.console.addEventListener('keydown',function(ev){
+            if(ev.ctrlKey){
+                var k = ev.code?.at(-1).toLowerCase()
+                switch(k){
+                    case 'b':
+                    case 'i':
+                        var  start = this.selectionStart;
+                        var  end = this.selectionEnd;
+                        var tag = k;
+                        var altTag = k === "i"?"b":"i"
+                        var sumTag = 'bi';
+                        let opT = `<${k}>`, clT = `</${k}>`;
+                        let opAT = `<${altTag}>`, clAT = `</${altTag}>`;
+                        let opST = `<${sumTag}>`, clST = `</${sumTag}>`; 
+                        let inStartOT, inEndCTvar ;
+                        let splited = [this.value.substring(0,start), this.value.substring(start, end),this.value.substring(end)]
+                        // 1 Перенести теги во вн. область
+                        let cT,list
+                        list = [tag,sumTag,altTag];
+                        for(let t of list){
+                            let opT = `<${t}>`, clT = `</${t}>`;
+                            if(
+                                (
+                                    splited[0].slice(-opT.length) === opT
+                                    || splited[1].indexOf(opT) === 0 
+                                
+                                ) && 
+                                (
+                                    splited[1].slice(-clT.length) === clT
+                                    || splited[2].indexOf(clT) === 0 
+                                
+                                )
+
+                            ){
+                                if( splited[0].slice(-opT.length) === opT )
+                                    splited[0] = splited[0].slice(0,-1*opT.length); 
+                                else splited[1] = splited[1].substring(opT.length); 
+
+                                if( splited[1].slice(-clT.length) === clT )
+                                    splited[1] = splited[1].slice(0,-1*clT.length);
+                                else  splited[2] = splited[2].substring(clT.length);
+
+                                cT = t
+                                break
+                            } 
+                        }
+                        // 2 clean
+                        list = [tag,sumTag];
+                        for(let t of list){
+                            let opT = `<${t}>`, clT = `</${t}>`;
+                            if(
+                                splited[1].lastIndexOf(opT) > splited[1].lastIndexOf(clT)
+                            ) splited[2] = clT + splited[2]
+                            if(
+                                splited[1].indexOf(clT) > splited[1].indexOf(opT)
+                            ) splited[0] =  splited[0] + clT
+                        }
+                        splited[1] = splited[1]
+                            .replace(new RegExp(opST,'g'),opAT).replace(new RegExp(clST,'g'),clAT)
+                            .replace(new RegExp(`</{0,1}${tag}>`,'g','g'),'')
+                        // 3 replace
+                        if(cT === altTag){//Если  альтернативный - заменяем на сум
+                            splited[0]+=opST
+                            splited[2]=clST + splited[2]
+                        }else if(cT === sumTag){//Если  сум - заменяем на альтерн
+                            splited[0]+=opAT
+                            splited[2]=clAT + splited[2]
+                        } else if(cT !== tag){//Если  не снятие - то добавляем
+                            splited[0]+=opT
+                            splited[2]=clT + splited[2]
+                        }
+                        this.value = splited.join('')
+                        this.selectionStart =  splited[0].length;
+                        this.selectionEnd =  splited[0].length + splited[1].length;
+                        EDITOR.consoleInput(ev)
+                        ev.preventDefault();
+                }
+            }
+            })
         consoleOuter.addEventListener('mousedown',function(ev){
             console.log(ev);
             if(ev.layerX < 5){
@@ -261,15 +398,15 @@ EDITOR = {
                         .replace(/(<\/bi>)|(<\/i>)|(<\/b>)/g,'</tspan>')
 
             var x = +cur.getAttribute('x');
-                    var y = +cur.getAttribute('y');
+                    var y = +(cur.firstElementChild || cur).getAttribute('y');
                     var fontSize = parseInt(getComputedStyle(cur).fontSize) || PROJECT.styles.FRAME.fontSize; 
                     var lh = fontSize * PAGE.styles.lineHeight; 
-                    console.log(lh,fontSize)
                     v = v.split(/\n/);
                     var i = 0, ch = cur.children;
                     if(ch.length>1){
-                        lh = (+ch[ch.length-1].getAttribute('y')-ch[ch.length-2].getAttribute('y')) || lh
+                        lh = (+ch.at(-1).getAttribute('y')-ch[ch.length-2].getAttribute('y')) || lh
                     }
+                    console.log(lh,fontSize)
                     i = 0;
                     for(;i<v.length; i++){
                         let e = ch[i] || SVG('tspan',{parentNode:cur,x :x,y:y+i*lh});
@@ -322,8 +459,9 @@ EDITOR = {
                     })
                 }  
                 let sx = 50;
+                EDITOR.cache.patchStyles = patchStyles
                 EDITOR.cache.defaultPathesStr = patchStyles.map((fillStyle,i) =>
-                    `<path id="color${i}" d="m ${sx+50*i},-130 -20,-40 -20,40 z" style="${Object.entries(fillStyle).map(s=>s.join(":")).join(';')}"/>`
+                    `<path id="color${i}" d="m ${sx+50*i},-170 -20,40 h 40 z" style="${Object.entries(fillStyle).map(s=>s.join(":")).join(';')}"/>`
                     ).join('')
                 
             }
@@ -354,8 +492,8 @@ EDITOR = {
 		d.texts.forEach(t=>{ 
 			let p, x = t.attr.x, y = t.attr.y, tr = t.attr.transform,style = t.attr.style||'';
 			// style.replace(/(:|;)\s/g,'$1').split(';').filter(s=>{ if(s){let s1 = s.split(':'); return !!s1[0]}})
-			let tr_type = tr ? tr.match(/(^[a-z]+)/)[0] : null;
-			if(tr)tr = tr.match(/(\d+\.{0,1}\d*)/g);
+			let tr_type = (typeof tr === "string") ? tr.match(/(^[a-z]+)/)[0] : null;
+			
 			console.log(tr_type)
 			x = +x||0; y =+y||0;
 			switch(t.type){
@@ -372,6 +510,7 @@ EDITOR = {
 					if(tr)
 					switch(tr_type){
 						case "translate":
+                            if(typeof tr === "string")tr = tr.match(/(\d+\.{0,1}\d*)/g);
 							x+=+tr[0];
 							y+=+tr[1];
 							tr = false;
@@ -516,7 +655,8 @@ EDITOR = {
             var fontSize = getComputedStyle(cur).fontSize || PROJECT.styles.FRAME.fontSize;
             var lh = parseInt(fontSize)*PAGE.styles.lineHeight;
             while(next = next.nextElementSibling)
-                next.setAttribute('y',+next.getAttribute('y') - lh); 
+                if(next.hasAttribute('y'))
+                    next.setAttribute('y',+next.getAttribute('y') - lh); 
 
         }
         EDITOR.changeFrame();
@@ -576,7 +716,7 @@ EDITOR = {
             
             for(let n in EDITOR.ui.input)EDITOR.ui.input[n].value = "";
             
-            EDITOR.current.svg = svg;
+            EDITOR.current.svg = svg; 
             if(textTag){
                 EDITOR.console('text',textTag);
                 EDITOR.last.active = EDITOR.current.active;
@@ -597,7 +737,9 @@ EDITOR = {
             }
             EDITOR.setCurrentNode(textNode);
             EDITOR.drawTree()
-            EDITOR.current.name = svg.closest('.frame').getAttribute('name');
+            var frameElem = svg.closest('.frame')
+            EDITOR.current.name = frameElem.getAttribute('name');
+            EDITOR.current.sceneName = frameElem.dataset.scene;
             EDITOR.ui.input.name.value = EDITOR.current.name;
 
             if(svg)EDITOR.actions.past();
@@ -633,7 +775,8 @@ EDITOR = {
                     var fontSize = getComputedStyle(cur).fontSize || PROJECT.styles.FRAME.fontSize;
                     var lh = parseInt(fontSize)*PAGE.styles.lineHeight;
                     while(next = next.nextElementSibling)
-                        next.setAttribute('y',+next.getAttribute('y') + lh);
+                        if(next.hasAttribute('y'))
+                            next.setAttribute('y',+next.getAttribute('y') + lh);
 
                     _new.focus();
                     // range.deleteContents();
@@ -796,7 +939,8 @@ EDITOR = {
                         // var fontSize = getComputedStyle(cur).fontSize || PROJECT.styles.FRAME.fontSize;
                         // var lh = parseInt(fontSize)*PAGE.styles.lineHeight;
                         while(next = next.nextElementSibling)
-                            next.setAttribute('y',+next.getAttribute('y') - lh);
+                            if(next.hasAttribute('y'))
+                                next.setAttribute('y',+next.getAttribute('y') - lh);
 
                         
                         // range.deleteContents();
@@ -873,15 +1017,16 @@ EDITOR = {
             // EDITOR.cleanSVG(this); 
         },
         saveBtn_click : function(ev){
-            var isFrameBtn = this.parentNode.classList.contains('frame');
-            var svg_orig = isFrameBtn ? this.parentNode.querySelector('svg') : EDITOR.current.svg;
+            var frame = this.closest('.pageData .frame');
+            var svg_orig = frame ? frame.querySelector('svg') : EDITOR.current.svg;
             
             var svg = svg_orig.cloneNode(true);
             var name = svg.getAttribute('name');
-            EDITOR.clipboardName(name,ev.ctrlKey,ev.shiftKey)
+            var sceneName = frame?.dataset.scene || EDITOR.current.sceneName;
+            EDITOR.clipboardName(sceneName,name,ev.ctrlKey,ev.shiftKey)
             svg.removeAttribute('name');
              EDITOR.cleanSVG(svg);
-            svg.querySelector('foreignObject').remove();
+            svg.querySelector('foreignObject')?.remove();
             svg.querySelectorAll('[contenteditable]').forEach(e=>e.removeAttribute('contenteditable'))
             svg_orig.querySelectorAll('div').forEach(function(div){
                 var innerHTML = div.innerHTML.replace(/(<br[\/]{0,1}>)/g,'\n').trim()
@@ -904,12 +1049,13 @@ EDITOR = {
             });
             var img = svg.querySelector('image');
             var NS = 'http://www.w3.org/1999/xlink';
-            var name = isFrameBtn ? this.dataset.name : EDITOR.current.name;
-            var frm = (PAGE.framesData[name] || {data:{imgFile:name+'.png'}}).data;
+            var name = frame ? this.dataset.name : EDITOR.current.name;
+            var sceneName = frame ? frame.dataset.scene : EDITOR.current.sceneName;
+            var frm = (PAGE.framesData[sceneName][name] || {data:{imgFile:name+'.png'}}).data;
             img.setAttributeNS(NS,'href',frm.imgFile)
             var svg_text = '<?xml version="1.0" encoding="UTF-8" standalone="no"?>\n'+ svg.outerHTML;// .replace(/(data-lock[^\s]*)/g,'sodipodi:insensitive="true"');
             // console.log(svg_text);
-            if(!isFrameBtn)this.setAttribute('download',name +'.svg');
+            if(!frame)this.setAttribute('download',name +'.svg');
             this.href = Base64.getBase64String(svg_text,"image/svg+xml");
             svg_orig.parentNode.classList.remove( 'notSaved');
         },
@@ -964,8 +1110,44 @@ EDITOR = {
             var safe = cur instanceof Element;
                 cur = safe ? cur : EDITOR.current.active;
                 value = value || +window.prompt();
-                cur.querySelectorAll('tspan').forEach((e,i)=>e.setAttribute('y',(value*(i+1))))
+                let text = EDITOR.current.active
+                let y = +(text.firstElementChild || text).getAttribute('y')
+                cur.querySelectorAll(':scope > tspan').forEach((e,i)=>e.setAttribute('y',(y + value*(i))))
                 if(!safe)EDITOR.changeFrame();
+        },
+        invert(cur ){
+            var safe = cur instanceof Element;
+                cur = safe ? cur : EDITOR.current.active; 
+                var node = EDITOR.current.node;
+                if(node.nodeType === 3)node = node.parentNode
+                if(node.tagName === "tspan" )node = node.closest('text');
+                var curFill = toRGB(node.style.fill), mainFill;
+                var isDark = rgb => rgb.reduce((acc, num) => acc + num, 0)<128*3/2;
+                var curDark = isDark(curFill)
+                switch(node.tagName){
+                    case "text":
+                        mainFill = PROJECT.styles.FRAME.svgFont.match(/fill:([^;]+)/)?.[1];
+                        node.style.fill = toRGB(Object.assign(curFill,curDark ?  [255,255,255] : toRGB(mainFill)),true); 
+                    break;
+                    case "path": 
+                        let ps = EDITOR.cache.patchStyles.find(ps => {
+                            var fill = toRGB(ps.fill)
+                            return curDark * !isDark(fill) &&  fill.length === curFill.length
+                        })
+                        if(ps){
+                            node.style.fill = ps.fill
+                            node.style.stroke = ps.stroke
+                        }
+                    break
+
+                }
+
+                // // var 
+                // var mainFill = PROJECT.styles.FRAME.svgFont.match(/fill:([^;]+)/)?.[1];
+                
+
+                // cur.querySelectorAll(':scope > tspan').forEach((e,i)=>e.setAttribute('y',(y + value*(i))))
+                // if(!safe)EDITOR.changeFrame();
         },
         // div => text
         divtotext(cur){ 
@@ -1037,14 +1219,25 @@ EDITOR = {
                 EDITOR.cleanSVGText(text);
                 // text.toggleAttribute('contenteditable',false)
                 text.setAttribute('x',~~(+text.getAttribute('x')));
-                text.setAttribute('y',~~(+text.getAttribute('y')));
+                text.setAttribute('y',~~(+(text.firstElementChild || text).getAttribute('y')));
+                var forClean = []
                 text.querySelectorAll('tspan').forEach(tspan=>{
-                    tspan.setAttribute('x',~~(+tspan.getAttribute('x')));
-                    tspan.setAttribute('y',~~(+tspan.getAttribute('y')));
-                    var t = tspan.innerHTML; 
-                    // t.replace('\x06','')
-                    if(trim)t= t.trim();
-                    tspan.innerHTML = t;
+                    if(tspan.hasAttribute('x')){ 
+                        let x = tspan.getAttribute('x');
+                        if(x === "NaN")tspan.removeAttribute('x');
+                        else if(!isNaN(+x))  tspan.setAttribute('x',~~(+x));
+                    }
+                    if(tspan.hasAttribute('y')){ 
+                        let y = tspan.getAttribute('y');
+                        if(y === "NaN")tspan.removeAttribute('y');
+                        else if(!isNaN(+y))  tspan.setAttribute('y',~~(+y));
+                    }
+                    // if(tspan.parentNode.tagName === "text"){
+                    //     var t = tspan.innerHTML; 
+                    //     // t.replace('\x06','')
+                    //     if(trim)t= t.trim();
+                    //     tspan.innerHTML = t; 
+                    // } 
                 })
                 // text.toggleAttribute('contenteditable',true)
                 
@@ -1078,7 +1271,7 @@ EDITOR = {
             var img = svg.querySelector('image');
             var NS = 'http://www.w3.org/1999/xlink';
             // var name =  EDITOR.current.name;
-            // var frm = (PAGE.framesData[name] || {data:{imgFile:name+'.png'}}).data;
+            // var frm = (PAGE.framesData[scene][name] || {data:{imgFile:name+'.png'}}).data;
             img.setAttributeNS(NS,'href',d.img + '?v='+Date.now() );  
         }  
        
@@ -1112,6 +1305,7 @@ EDITOR = {
                 props.push('TextStyle');
                 props.push('TSpanStyle');
                 props.push('textContent');
+                props.push('textRotate');
         } 
         
         EDITOR.ui.input.item.value = '';
@@ -1163,7 +1357,7 @@ EDITOR = {
                 let tspan = SVG('tspan',{ x :x,y:y+i*lh },textArr[i]);
                 let next = cur;
                 while(next = next.nextElementSibling)
-                    next.setAttribute('y',+next.getAttribute('y') + lh); 
+                    if(next.hasAttribute('y'))next.setAttribute('y',+next.getAttribute('y') + lh); 
                 cur.after(tspan);
                 cur = tspan;
             };
@@ -1217,7 +1411,20 @@ EDITOR = {
                         }),
                         ch,
                     ]);
-                    
+                    let isSyst = false
+                    switch(node.tagName){
+                        case "path":
+                            let d = node.getAttribute('d');
+                            if(d){
+                                if(EDITOR.sysPathD.test(d)){
+                                    isSyst = true;
+                                    // ctx.dataset.comment = node.getAttribute('style')
+                                    //     .replace(/([a-z]+)[-]/g,$1=>$1[0]+'-').replace(/([a-z]+)[:]/g,$1=>$1[0]+':').replace(/([\s-]+)/g,'')
+                                }
+                            }
+                        break;
+                    }
+                    if(isSyst)ctx.classList.add("sys")  
                     EDITOR.current.treeMap.set(node, {e:e,content:ctx});
 
                     for(var i=0; i< node.childNodes.length; i++){
@@ -1348,7 +1555,8 @@ EDITOR = {
             text.style.textAnchor = tA;
             text.setAttribute('x',~~(x0-dx));
             text.childNodes.forEach(tspan=>{
-                tspan.setAttribute('x',~~(tspan.getAttribute('x') - dx));
+                if(tspan.hasAttribute('x'))
+                    tspan.setAttribute('x',~~(tspan.getAttribute('x') - dx));
             })
         }
         EDITOR.changeFrame();
@@ -1413,8 +1621,10 @@ EDITOR = {
                 text = [text].concat(Array.from(text.querySelectorAll('tspan')));
                  
                 text.forEach(e=>{
-                    e.setAttribute('x',x+parseInt(e.getAttribute('x')));
-                    e.setAttribute('y',y+parseInt(e.getAttribute('y')));
+                    if(e.hasAttribute('x'))
+                        e.setAttribute('x',x+parseInt(e.getAttribute('x')));
+                    if(e.hasAttribute('y'))
+                        e.setAttribute('y',y+parseInt(e.getAttribute('y')));
                 })
             }else {
                 if(type === "a"){
@@ -1442,13 +1652,9 @@ EDITOR = {
     },
     cleanSVGText(text, safe){
         // Убиваем пустые в конце
-        Array.from(text.children).reverse().find((tspan)=>{ 
-            if(tspan.textContent.trim()){
-                
-                return true;
-            }else{
+        Array.from(text.children).reverse().forEach((tspan)=>{ 
+            if(!tspan.textContent.trim()){
                 tspan.remove();
-                return false;
             }
         })
         if(text.children.length === 0)text.remove()
@@ -1457,10 +1663,10 @@ EDITOR = {
             
             Array.from(text.children).forEach(tspan=>{
                 if(safe){
-                    if(tspan.firstChild.nodeType === 3){
+                    if(tspan.firstChild?.nodeType === 3){
                         tspan.firstChild.textContent = tspan.firstChild.textContent.trimLeft()
                     }
-                    if(tspan.lastChild.nodeType === 3){
+                    if(tspan.lastChild?.nodeType === 3){
                         tspan.lastChild.textContent = tspan.lastChild.textContent.trimRight()
                     }
                 }else
@@ -1479,8 +1685,8 @@ EDITOR = {
         })
     },
     
-	clipboardName(name,copyName,copyPath){
-			var frm = PAGE.framesData[name].data;
+	clipboardName(sceneName,name,copyName,copyPath){
+			var frm = PAGE.framesData[sceneName][name].data;
 			if(copyName){//Путь к файлу
 				console.log(frm)
 				var src = frm.ctxData.svgName;

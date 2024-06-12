@@ -1,3 +1,4 @@
+var contextPath = '';
 var dQ = document.querySelector.bind(document);
 var dQAll = document.querySelectorAll.bind(document);
 var dId = document.getElementById.bind(document);
@@ -2066,4 +2067,353 @@ function SWAP(o,val,self){
       alpha3(c,cont,g){
 
       }
+  }
+
+  var CompareObjects = function () {
+    var A = arguments,
+        l = A.length,
+        i = 0,
+        C = CompareObjects,
+        r,
+        R = [];
+    R.length = l;
+
+    // R[0]=Object.assign(new A[0].__proto__.constructor,A[0])
+    R[0] = {}
+    R[1] = {}
+    for (var i in A[0]) if (A[0].hasOwnProperty(i)) R[0][i] = A[0][i]
+    for (var i in A[1]) if (A[1].hasOwnProperty(i))
+        if (A[1][i] === R[0][i]) {
+            console.log(i, 1)
+            delete R[0][i];
+        } else if (
+            !(i in R[0]) ||
+            (typeof R[0][i] !== 'object' ||
+                typeof A[1][i] !== 'object') ||
+            !R[0][i] && A[1][i] ||
+            R[0][i] && !A[1][i]
+        ) {
+            console.log(i, 2)
+            R[1][i] = A[1][i]
+        } else {
+            console.log(i, 3)
+            r = C(R[0][i], A[1][i])
+            if (
+                Object.keys(r[0]).length === 0 &&
+                Object.keys(r[1]).length === 0) {
+                delete R[0][i];
+                delete R[1][i];
+            } else {
+                R[0][i] = r[0];
+                R[1][i] = r[1];
+            }
+        }
+    return R;
+}
+
+first = function(item){
+    return item[0]
+}
+last = function(item){
+    return item[item.length-1]
+}
+
+
+// Пытается перекрасить картинку. Воспренимает любую как чб 
+var changeColorIMG = function (data, nData)// imgNode, [R,G,B]
+{
+    var img, cnv, cnt, imgData;
+    if (typeof data === 'string') {
+        img = document.createElement('img');
+        img.src = data;
+    } else {
+        img = data;
+    }
+    var cg = ((nData[0] + nData[1] + nData[2]) / 3);
+    // nData = nData.map(function(c){return c/255});
+
+    cnv = document.createElement('canvas');
+    cnv.width = img.width;
+    cnv.height = img.height;
+
+    ctx = cnv.getContext('2d');
+    ctx.drawImage(img, 0, 0);
+
+    imgData = ctx.getImageData(0, 0, cnv.width, cnv.height)
+    data = imgData.data;
+
+    for (var x = 0, len = data.length, c, d; x < len; x += 4) {
+        c = ((data[x] + data[x + 1] + data[x + 2]) / 3);
+        d = c - cg;
+        c = c / 255;
+        for (var i = 0, z; i < 3; i++) {
+            z = (nData[i] > c ? 1 : nData[i] < c ? -1 : 0) * 0.2 * nData[i];//Увеличим амплетуду
+            z += ~~((nData[i] + d) * c);
+            if (z < 0) z = 0; else if (z > 255) z = 255;
+            data[x + i] = z;
+        }
+
+        data[x + 1] = ~~((nData[1] + d) * c);
+        data[x + 2] = ~~((nData[2] + d) * c);
+    }
+
+    ctx.putImageData(imgData, 0, 0);
+    return cnv.toDataURL();
+}
+
+/**
+ * Converts an RGB color value to HSL. Conversion formula
+ * adapted from http://en.wikipedia.org/wiki/HSL_color_space.
+ * Assumes r, g, and b are contained in the set [0, 255] and
+ * returns h, s, and l in the set [0, 1].
+ *
+ * @param   Number  r       The red color value
+ * @param   Number  g       The green color value
+ * @param   Number  b       The blue color value
+ * @return  Array           The HSL representation
+ */
+function rgbToHsl(r, g, b) {
+    if(r instanceof Array){ b = r[2]; g = r[1]; r = r[0];}
+    r /= 255, g /= 255, b /= 255;
+    var max = Math.max(r, g, b), min = Math.min(r, g, b);
+    var h, s, l = (max + min) / 2;
+
+    if (max == min) {
+        h = s = 0; // achromatic
+    } else {
+        var d = max - min;
+        s = l > 0.5 ? d / (2 - max - min) : d / (max + min);
+        switch (max) {
+            case r: h = (g - b) / d + (g < b ? 6 : 0); break;
+            case g: h = (b - r) / d + 2; break;
+            case b: h = (r - g) / d + 4; break;
+        }
+        h /= 6;
+    }
+
+    return [h, s, l];
+}
+
+/**
+ * Converts an HSL color value to RGB. Conversion formula
+ * adapted from http://en.wikipedia.org/wiki/HSL_color_space.
+ * Assumes h, s, and l are contained in the set [0, 1] and
+ * returns r, g, and b in the set [0, 255].
+ *
+ * @param   Number  h       The hue
+ * @param   Number  s       The saturation
+ * @param   Number  l       The lightness
+ * @return  Array           The RGB representation
+ */
+function hslToRgb(h, s, l) {
+    if(h instanceof Array){ l = h[2]; s = h[1]; h = h[0];}
+    var r, g, b;
+
+    if (s == 0) {
+        r = g = b = l; // achromatic
+    } else {
+        function hue2rgb(p, q, t) {
+            if (t < 0) t += 1;
+            if (t > 1) t -= 1;
+            if (t < 1 / 6) return p + (q - p) * 6 * t;
+            if (t < 1 / 2) return q;
+            if (t < 2 / 3) return p + (q - p) * (2 / 3 - t) * 6;
+            return p;
+        }
+
+        var q = l < 0.5 ? l * (1 + s) : l + s - l * s;
+        var p = 2 * l - q;
+        r = hue2rgb(p, q, h + 1 / 3);
+        g = hue2rgb(p, q, h);
+        b = hue2rgb(p, q, h - 1 / 3);
+    }
+
+    return [r * 255, g * 255, b * 255];
+}
+
+/**
+ * Converts an RGB color value to HSV. Conversion formula
+ * adapted from http://en.wikipedia.org/wiki/HSV_color_space.
+ * Assumes r, g, and b are contained in the set [0, 255] and
+ * returns h, s, and v in the set [0, 1].
+ *
+ * @param   Number  r       The red color value
+ * @param   Number  g       The green color value
+ * @param   Number  b       The blue color value
+ * @return  Array           The HSV representation
+ */
+function rgbToHsv(r, g, b) {
+    if(r instanceof Array){ b = r[2]; g = r[1]; r = r[0];}
+    r = r / 255, g = g / 255, b = b / 255;
+    var max = Math.max(r, g, b), min = Math.min(r, g, b);
+    var h, s, v = max;
+
+    var d = max - min;
+    s = max == 0 ? 0 : d / max;
+
+    if (max == min) {
+        h = 0; // achromatic
+    } else {
+        switch (max) {
+            case r: h = (g - b) / d + (g < b ? 6 : 0); break;
+            case g: h = (b - r) / d + 2; break;
+            case b: h = (r - g) / d + 4; break;
+        }
+        h /= 6;
+    }
+
+    return [h, s, v];
+}
+
+/**
+ * Converts an HSV color value to RGB. Conversion formula
+ * adapted from http://en.wikipedia.org/wiki/HSV_color_space.
+ * Assumes h, s, and v are contained in the set [0, 1] and
+ * returns r, g, and b in the set [0, 255].
+ *
+ * @param   Number  h       The hue
+ * @param   Number  s       The saturation
+ * @param   Number  v       The value
+ * @return  Array           The RGB representation
+ */
+function hsvToRgb(h, s, v) {
+    if(h instanceof Array){ v = h[2]; s = h[1]; h = h[0];}
+    var r, g, b;
+    if (h < 0) h = 1 - h;
+    if (s < 0) s = 1 - s;
+    if (v < 0) v = 1 - v;
+    var i = Math.floor(h * 6);
+    var f = h * 6 - i;
+    var p = v * (1 - s);
+    var q = v * (1 - f * s);
+    var t = v * (1 - (1 - f) * s);
+
+    switch (i % 6) {
+        case 0: r = v, g = t, b = p; break;
+        case 1: r = q, g = v, b = p; break;
+        case 2: r = p, g = v, b = t; break;
+        case 3: r = p, g = q, b = v; break;
+        case 4: r = t, g = p, b = v; break;
+        case 5: r = v, g = p, b = q; break;
+    }
+
+    return [~~(r * 255), ~~(g * 255), ~~(b * 255)];
+}
+
+
+function componentToHex(c) {
+    var hex = c.toString(16);
+    return hex.length == 1 ? "0" + hex : hex;
+}
+
+function rgbToHex(r, g, b) { 
+    if(r instanceof Array){ b = r[2]; g = r[1]; r = r[0];}
+    return "#" + componentToHex(r) + componentToHex(g) + componentToHex(b);
+}
+
+function hexToRgb(hex, alpha) {
+    // Expand shorthand form (e.g. "03F") to full form (e.g. "0033FF")
+    var shorthandRegex = /^#?([a-f\d])([a-f\d])([a-f\d])$/i;
+    hex = hex.replace(shorthandRegex, function (m, r, g, b) {
+        return r + r + g + g + b + b;
+    });
+
+    var result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
+    result =  result ? [
+        parseInt(result[1], 16),
+        parseInt(result[2], 16),
+        parseInt(result[3], 16)
+    ] : [0,0,0];
+    if(alpha)result.push(alpha);
+    return result;
+}
+
+toRGB = function(s,toString){
+    var rgb = Array.isArray(s) ? s : [0,0,0];
+    if(typeof s === "string")
+    switch(0){
+        case s.indexOf('#'):
+            rgb = hexToRgb(s);
+        break
+        case s.indexOf('rgb'):
+            rgb = s.match(/(\d[^,\)]+)/g)?.map(d=>+d) ||[0,0,0]
+        break
+    } 
+    if(toString)rgb = `rgb${rgb. length === 4 ? 'a' : '' }(${rgb.join()})` 
+    return rgb
+}
+
+// Сравнение объектов
+var CompareObjects = function () {
+    var A = arguments,
+        l = A.length,
+        i = 0,
+        C = CompareObjects,
+        r,
+        R = [];
+    R.length = l;
+
+    // R[0]=Object.assign(new A[0].__proto__.constructor,A[0])
+    R[0] = {}
+    R[1] = {}
+    for (var i in A[0]) if (A[0].hasOwnProperty(i)) R[0][i] = A[0][i]
+    for (var i in A[1]) if (A[1].hasOwnProperty(i))
+        if (A[1][i] === R[0][i]) {
+            console.log(i, 1)
+            delete R[0][i];
+        } else if (
+            !(i in R[0]) ||
+            (typeof R[0][i] !== 'object' ||
+                typeof A[1][i] !== 'object') ||
+            !R[0][i] && A[1][i] ||
+            R[0][i] && !A[1][i]
+        ) {
+            console.log(i, 2)
+            R[1][i] = A[1][i]
+        } else {
+            console.log(i, 3)
+            r = C(R[0][i], A[1][i])
+            if (
+                Object.keys(r[0]).length === 0 &&
+                Object.keys(r[1]).length === 0) {
+                delete R[0][i];
+                delete R[1][i];
+            } else {
+                R[0][i] = r[0];
+                R[1][i] = r[1];
+            }
+        }
+    return R;
+}
+
+
+
+HTMLCollection.prototype.at = Array.prototype.at
+
+
+function convertToRoman(num) {
+    var roman = {
+      M: 1000,
+      CM: 900,
+      D: 500,
+      CD: 400,
+      C: 100,
+      XC: 90,
+      L: 50,
+      XL: 40,
+      X: 10,
+      IX: 9,
+      V: 5,
+      IV: 4,
+      I: 1
+    };
+    var str = '';
+  
+    for (var i of Object.keys(roman)) {
+      var q = Math.floor(num / roman[i]);
+      num -= q * roman[i];
+      str += i.repeat(q);
+    }
+  
+    return str;
   }

@@ -540,7 +540,8 @@ PAGE = {
 		var fr = document.createDocumentFragment();
 		// console.log(this.framesList)
 		this.framesList.forEach(frm =>{
-			var fra = DIV({className:'frame', name : frm.name, parentNode:fr},
+			var scene = frm.sceneInfo.scene
+			var fra = DIV({className:'frame', name : frm.name, datsaset:{scene:scene}, parentNode:fr},
 				INPUT({className:'h3', readonly : true, value : frm.name })
 			);
 			STYLES.set(fra, {
@@ -634,14 +635,16 @@ PAGE = {
 					if(!(n instanceof Element))PTag({parentNode:this},n)
 				}
 			})
-
-			framesData[frm.name] = {
+			framesData[scene] = framesData[scene] || {}
+			framesData[scene][frm.name] = {
 				name : frm.name,
 				data : frm,
 				block : fra,
 				content : cont,
 				scale : scale,
-				svg : svg
+				svg : svg,
+				scene:scene,
+				sceneInfo: fr.sceneInfo
 			}
 			// if(frm.newLine)frm_str += `</tr><tr>`;
 			

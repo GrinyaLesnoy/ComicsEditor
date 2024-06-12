@@ -66,22 +66,43 @@ document.addEventListener("DOMContentLoaded", ()=>{
 	loadScript([TEMPLATEDIR + 'lib.js',TEMPLATEDIR + 'EDITOR.js',TEMPLATEDIR + 'PAGE.js',TEMPLATEDIR + 'polyfills/main.js','DATA.js'],()=>{
 		PROJECT = Object.assign(PROJECT,DATA);
 		console.log('init');
-		var style = document.createElement('style');
-		document.head.appendChild(style);
-		style.innerHTML = `
-			:root {
-				--page-box: ${(PROJECT.styles.PAGE.width+40)*2+10}px;
-				--page-width: ${PROJECT.styles.PAGE.width}px;
-				--page-height: ${PROJECT.styles.PAGE.height}px;
-				--frame-font:${PROJECT.styles.FRAME.font};
-				--frame-fontSize:${PROJECT.styles.FRAME.fontSize};
-				--page-zoom:${PROJECT.styles.PAGE.scale || 1};
-				--fill:${PROJECT.styles.fillStyle};
-		  	}
+		let pageWidth = PROJECT.styles.PAGE.width,
+			pageScale = PROJECT.styles.PAGE.scale || 1
+		let pageBox = (pageWidth+40)*2+10
+		let frameFontSize = PROJECT.styles.FRAME.fontSize
+		let sidbarWidth = PROJECT.styles.CONSOLE?.width || 250
 			
-		`; 
+		STYLES.addCSS({str:`
+		:root {
+			--page-box: ${pageBox}px;
+			--page-width: ${PROJECT.styles.PAGE.width}px;
+			--page-height: ${PROJECT.styles.PAGE.height}px;
+			--frame-font:${PROJECT.styles.FRAME.font};
+			--frame-fontSize:${frameFontSize};
+			--console-fontSize:${PROJECT.styles.CONSOLE?.fontSize ||frameFontSize *pageScale}px;
+			--page-zoom:${pageScale};
+			--fill:${PROJECT.styles.fillStyle};
+			--sidebar-width:${sidbarWidth}px;
+		  }
+		
+	`})
+	STYLES.addCSS({url:TEMPLATEDIR + 'css/styles.css'})
+		// var style = document.createElement('style');
+		// document.head.appendChild(style);
+		// style.innerHTML = `
+		// 	:root {
+		// 		--page-box: ${(PROJECT.styles.PAGE.width+40)*2+10}px;
+		// 		--page-width: ${PROJECT.styles.PAGE.width}px;
+		// 		--page-height: ${PROJECT.styles.PAGE.height}px;
+		// 		--frame-font:${PROJECT.styles.FRAME.font};
+		// 		--frame-fontSize:${PROJECT.styles.FRAME.fontSize};
+		// 		--page-zoom:${PROJECT.styles.PAGE.scale || 1};
+		// 		--fill:${PROJECT.styles.fillStyle};
+		//   	}
+			
+		// `; 
 
-		CreateElement('link',{rel:"stylesheet",href: TEMPLATEDIR + 'css/styles.css',parentNode:document.head})
+		// CreateElement('link',{rel:"stylesheet",href: TEMPLATEDIR + 'css/styles.css',parentNode:document.head})
  
 
 		// if(~location.href.split('/').pop().indexOf('en'))PAGE.lang='en';

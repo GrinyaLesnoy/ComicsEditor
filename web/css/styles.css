@@ -22,10 +22,11 @@ src: url("../webfonts/fa-solid-900.eot?#iefix") format("embedded-opentype"), url
 
 
 body{
-    background : #333;
+    --body-bgcolor:#333; 
+    background :var(--body-bgcolor);
     color : #fff;
     font-size:18px;
-    --sidebar-width:250px;
+    /* --sidebar-width:250px; */
     width: calc( var(--page-box) * var(--page-zoom) + var(--sidebar-width) );
     margin-right: var(--sidebar-width);
 }
@@ -49,8 +50,7 @@ a:hover{
 
 #pages-container{
     /* margin-right: var(--sidebar-width); */
-    counter-reset: pageTotal;
-    counter-reset: pageNum;
+    counter-reset: pageTotal partNum pageNum; 
 }
 
 .page-block{
@@ -58,7 +58,16 @@ a:hover{
     padding:20px;
     vertical-align: top;
 }
+.page-box.partStart{
+    --border-color:rgba(255,180,0,0.5); 
+    counter-reset: partNum;
+    box-shadow: inset 0 3px 0px 0px var(--border-color);
+    border-top: 1px solid var(--border-color)
+}
 
+.partStart .partStartBtn{
+    opacity: 0.7;
+}
 .page-box,#pages-container{
     width: var(--page-box);
 }
@@ -131,19 +140,49 @@ h3, .h3{
     margin: 0 0 5px;
 
 }
-.frame h3, .frame .h3 {
-    color: #fff;
-    background: #333;
+
+.frameController{ 
+    font-size :  calc( var(--console-fontSize) / var(--page-zoom)  );  
     position: absolute;
-    bottom: -55px;
-    border: none;
+    /* bottom: calc( var(--console-fontSize) / var(--page-zoom) *-2 );   */
+    
+    padding: 5px 0px;
+    bottom: calc( ( var(--console-fontSize) + 10px ) / var(--page-zoom) *-1 );  
+    right: 0;
+    left: 0;
+    width: 100%;
+    --btnWidtth : calc( 70px / var(--page-zoom)  ); 
 }
 
-a.saveBtn {
-    position: absolute;
-    right: 0;
-    bottom: -40px;
+.frame:hover .frameController{
+    z-index: 5;
+    background :var(--body-bgcolor);
+}
+.frame h3, .frame .h3 {
     color: #fff;
+    background: transparent;
+    position: relative;
+    /* bottom: -55px; */
+    border: none;
+    max-width: calc( 100% - var(--btnWidtth) );
+    padding: 0px;
+    box-sizing: border-box;
+    margin-bottom: 0;
+    font-size: 1em;
+}
+
+.frameController a.saveBtn {
+    position: relative;
+    /* right: 0; */
+    /* bottom: -35px; */
+    color: #fff;
+    /* line-height: 43px; */
+    float: right;
+    width: var(--btnWidtth);
+    box-sizing: border-box;
+    text-align: right;
+    box-sizing: border-box;
+    cursor: pointer;
 }
 
 #sidebar{
@@ -198,7 +237,8 @@ a.saveBtn {
     right: 0;
     bottom : 0; */
     font : var(--frame-font);
-    font-size : calc( var(--frame-fontSize) * var(--page-zoom) * 1px );
+    /* font-size : calc( var(--frame-fontSize) * var(--page-zoom) * 1px ); */
+    font-size :var(--console-fontSize) ;
     color: #000;
     /* width:calc(100% - 5px); */
     height:200px;
@@ -263,6 +303,13 @@ a.saveBtn {
 #SVGTree .tagItem > .content::after{
     content: "<"attr(data-tag)"/>";
     color:#14325f;
+}
+#SVGTree .tagItem > .content.sys::after{
+    /* content: "<"attr(data-tag)"/>"; */
+    color:#777;
+}
+#SVGTree .tagItem > .content[data-comment]::after{
+    content: "<"attr(data-tag)"/>: "attr(data-comment); 
 }
 
 #SVGTree ul,
@@ -358,7 +405,12 @@ a.saveBtn {
 
 #scenesList .Item .imgBox{
     max-width: 100%;
-    background: rgba(255, 255, 255, 0.87);
+    background-color: rgba(255, 255, 255, 0.87);
+    background-position: 0 0;
+    background-repeat: no-repeat;
+    background-size: cover;
+    width: 230px;
+    height: 230px;
 }
 
 #scenesList .Item img{
@@ -375,8 +427,9 @@ a.saveBtn {
     counter-increment: pageTotal; 
 }
 .pageController::before{
-    counter-increment: pageNum;
-    content: counter(pageNum) ": ";
+    counter-increment: partNum pageNum; 
+    /* content: counter(pageNum) ": "; */
+    content: counter(pageNum) " (" counter(partNum) ") : ";
     color: #ccc;
     color: "";
 }

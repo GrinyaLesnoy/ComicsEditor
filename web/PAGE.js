@@ -44,18 +44,20 @@ PAGE = {
 			var setData = function(name){
 				// let s = f.match(mask)[1];
 				var im=IMG();
-				var info = DIV({className:'info'})
+				var info = DIV({className:'info'});
+				var imgBox = DIV({className:'imgBox'})//im
 				var l = ALink({
 					href:f+'?'+name,
 					className:'Item',
 					parentNode:fr
 				},[
-					DIV({className:'imgBox'},im),
+					imgBox,
 					SPAN({className:'title'},name),
 					info
 				]);
 				loadScript([PROJECT.scenesDir+'/'+name+'/SceneDATA.js'],function(){
-					im.src= PROJECT.scenesDir+'/'+ name + '/'+ DATA.list[0][2];
+					// im.src= PROJECT.scenesDir+'/'+ name + '/'+ DATA.list[0][2];
+					imgBox.style.backgroundImage = `url("${PROJECT.scenesDir}/${name}/${DATA.list?.[0]?.[2]}")`
 					if(DATA.scene.titlePage){
 						DIV({parentNode:info},'Глава ' + DATA.scene.titlePage.chapter)
 					}
@@ -78,7 +80,9 @@ PAGE = {
 		PROJECT.scene = Object.assign({ 
 			sizes : {},
 			spec : {},
-			text : {}
+			texts : {},
+			parts : {},
+			Parts : []
 		},PROJECT.scene);
 		PROJECT.list = PROJECT.list || [];
 		PROJECT.list.forEach((v)=>{ v[1].path = v[1].path||'';}); 
@@ -133,7 +137,13 @@ PAGE = {
 	}, 
 	// Получение списка кадров
 	loadDATA(){
-		var nextPath = PROJECT.scenesDir+'/'+ PAGE.opScenes[PAGE.nextInd]+'/';
+		var sceneName = PAGE.opScenes[PAGE.nextInd]; 
+		let sceneNum = sceneName.match(new RegExp(PROJECT.sceneNameMask))[1];
+		let sceneInfo = {
+			name: sceneName,
+			num: sceneNum
+		}
+		var nextPath = PROJECT.scenesDir+'/'+ sceneName +'/';
 				delete PROJECT.scene.next; 
 				let onload =()=>{ 
 					// старотовать с... (для "тяжелых" сцен)
@@ -143,17 +153,25 @@ PAGE = {
 						DATA.list = DATA.list.filter(v => v[1].num >= start && (!end || v[1].num <= end))
 					}
 					 
-					PROJECT.list = PROJECT.list.concat(DATA.list.map((v)=>{ v[1].path = nextPath;return v;}));   
+					PROJECT.list = PROJECT.list.concat(DATA.list.map((v)=>{ 
+						v[1].path = nextPath;
+						v[1].sceneInfo = sceneInfo; 
+						v[1].sceneName = sceneName; 
+						return v;}));   
 					
 					PROJECT.scene = Object.assign(
 						{},
 						DATA.scene,
 						PROJECT.scene
 					);
+ 
 					
-					PROJECT.scene.spec = Object.assign(PROJECT.scene.spec,DATA.scene.spec||{}); 
-					PROJECT.scene.sizes = Object.assign(PROJECT.scene.sizes,DATA.scene.sizes||{}); 
-					PROJECT.scene.texts = Object.assign(PROJECT.scene.texts || {},DATA.scene.texts||{}); 
+					PROJECT.scene.spec[sceneName] = DATA.scene.spec||{}; 
+					PROJECT.scene.sizes[sceneName] = DATA.scene.sizes||{}; 
+					PROJECT.scene.texts[sceneName] = DATA.scene.texts||{}; 
+					PROJECT.scene.parts[sceneName] = DATA.scene.parts||[]; 
+					if(DATA.scene.Parts)
+						PROJECT.scene.Parts = PROJECT.scene.Parts.concat(DATA.scene.Parts) 
 					PAGE.nextInd++;
 					if(PROJECT.scene.next){ PAGE.Init();}
 					else 
@@ -257,12 +275,17 @@ PAGE = {
 		var start = PAGE.currentFrame;
 		var list = PROJECT.list;
 		this.hasSpec = false;//Специальный размер. Где есть кадры со спец-положением, игнорируем рассчёт позиций
-		let sq = PAGE.placeSq, S = 0,s, item, c = 0, r =0, w =0, j;
+		let sq = PAGE.placeSq, 
+			S = 0,s, item, c = 0, r =0, w =0, j;
 		
 		let mg = PAGE.styles.frameMargin;
+		let framesInPageByS = []
+		var hasLong=false, hasHaight = false
+		// Отбираем из списка по площади
 		for(let j = start; j< list.length; j++){
 			item = list[j];
-			let [name, {width:W,height:H,path:path,png:pngIMG,svg:svgIMG=false, svgPath : svgPath, svgName : svgName}, f]=item;
+			let [name, {width:W,height:H,path:path,png:pngIMG,svg:svgIMG=false, svgPath : svgPath, svgName : svgName, sceneName:sceneName, sceneInfo:sceneInfo}, f]=item;
+			 
 			let iw, ih; 
 			if(pngIMG){
 				iw = pngIMG.width, ih = pngIMG.height; 
@@ -276,25 +299,30 @@ PAGE = {
 					0,0,
 					iw, ih
 				],
-				this.sizes[name]
+				this.sizes[sceneName]&&this.sizes[sceneName][name]
 			);
 			if(typeof scale === 'object')scale=~~(H/scale[1]); 
 			let scaled_Width = file_Width/scale, scaled_Height = file_Height/scale;
-			s = scaled_Width * scaled_Height;
-			if(S + s > sq) break;
-			S += s;
-			if(this.spec[name])this.hasSpec = true;
-			
-	 
+ 
 			let placeWidth = scaled_Width+mg*2,  
 			placeHeight = scaled_Height+PAGE.styles.frameMarginVert;
 
-			this.framesInPage.push({
+			s = scaled_Width * scaled_Height;
+			S += s; 
+			if(S > sq) break;
+			if(this.spec[sceneName] && this.spec[sceneName][name])this.hasSpec = true;
+			if(j>start){
+				let last = framesInPageByS.at(-1);
+				if(placeWidth!==last.placeWidth)hasLong=true;
+				if(placeHeight!==last.placeHeight)hasHaight=true;
+			}
+			 
+			framesInPageByS.push({
 				name : name,
 				scale : scale,
 				scaled_Width : scaled_Width,
 				scaled_Height : scaled_Height,
-				scaledPl: s,
+				placeS: s,
 				placeWidth : placeWidth,
 				placeHeight : placeHeight,
 				file_Width : file_Width,
@@ -306,22 +334,285 @@ PAGE = {
 				svgPath : svgPath,
 				svgName : svgName,
 				imgFile : item[1].imgFile,
+				sceneInfo : sceneInfo,
+				sceneName:sceneName,
 				path : path
 			})	
 		}
+		item = framesInPageByS[0]
+		// this.framesInPage.push(item);
+		var maxX = PAGE.styles.maxX;
+		var maxY = PAGE.styles.maxY;
+		var minX = PAGE.styles.minX;
+		var minY = PAGE.styles.minY;
+		item.x= minX;
+		item.y= minY;
+		let x = minX, 
+			y = minY;
+		let wstep =item.placeWidth, hstep = item.placeHeight;
+		if(true){//Если все равны - простой алгоритм
+		// if(hasLong === false && hasHaight === false){//Если все равны - простой алгоритм
+			
+			for(let i=0; i<framesInPageByS.length; i++){
+				item = framesInPageByS[i];
+				// if(i>0){ 
+				// 	x+=wstep
+				// 	if(x > maxX){
+				// 		y+=hstep;
+				// 		x=minX
+				// 	}
+				// 	if(y + hstep > maxY)break
+				// }
+				// item.x=x;
+				// item.y=y;
+				this.framesInPage.push(item);
+			}
+		}else{ 
+			//TODO:  отсеить лишние и скомпоновать 
+			let last = item,rowCount, next,listX=[], pmatrx = [],max_w, freeW, isNewLine=true;
+			pmatrx = Array.from({length: maxY-minY},(v)=>Array.from({length:maxX-minX}))
+			let setMatrix = (x,y,w,h)=>{
+				for(let _y=y, row; _y<y+h; _y++){
+					row = pmatrx[_y];
+					for(let _x=x; _x<x+w; _x++) row[_x]=true; 
+				}
+			}
+			let check = (x,y,w,h)=>{ 
+				for(let _y=y, row; _y<y+h; _y++){
+					row = pmatrx[_y];
+					for(let _x=x; _x<x+w; _x++)if( row[_x]){
+						return false;
+					} 
+				}
+				return true
+			}
+			let findFree = (x,y,w,h)=>{
+				for(let _y=y, row; _y<=pmatrx.length-h; _y++){
+					row = pmatrx[_y];
+					for(let _x=x; _x<row.length-w; _x++)if( !row[_x]){
+						if(check(_x,_y,w,h))return [_x,_y] 
+					} 
+				}
+				return x===0 && y===0 ? false : findFree(0,0,w,h);
+			}
+			for(let i=0; i<framesInPageByS.length; i++){
+				item = framesInPageByS[i];
+				if(isNewLine){
+					listX.length = 0;
+					listX.push(item)
+					freeW = maxX - x
+					max_w = item.placeWidth
+					//1 найти след не стандартный по высоте
+					for(j=i+1;j<framesInPageByS.length; j++ ){
+						next = framesInPageByS[j];
+						if(next.placeWidth >= freeW){
+							// 100% свободной ширины: Если не поместится с кем-то по ширине из отобранных - скомпоновать не удастся
+							listX.length = 1;
+							break;
+						}
+						if(next.placeHeight<item.placeHeight || next.placeHeight!==item.placeHeight && j===i+1){
+							// Если следующий другой высоты - просто вставляется, если меньше - дальше пересчёт отн-но него
+							listX.length = 1;
+							break;
+						}
+						if(next.placeHeight>item.placeHeight){ 
+							if(
+								next.placeWidth + max_w > freeW 
+								){
+								// w+w > Max; Если не поместится с кем-то по ширине из отобранных - скомпоновать не удастся 
+								listX.length = 1;
+								break;
+							} 
+							rowCount = Math.ceil(next.placeHeight/item.placeHeight);
+							let realRowsCount = 1;
+							for(let w2=0, j2=0; j2< listX.length; j2++){
+								w2+=listX[j2].placeWidth;
+								if(w2 + next.placeWidth  > freeW ){
+									realRowsCount++; w2=0;
+								}
+							}
+							if(
+								realRowsCount > rowCount 
+							){
+								// Набрал больше чем надо
+								listX.length = 1;
+								break;
+							} 
+
+							break;//
+						}
+						max_w = Math.max(max_w, next.placeWidth);
+						listX.push(next)
+					}
+					if(listX.length>1){
+						// 1 сколько по ширине ещё может
+						let nextList = [next],k, realRowsCount, tRX, tY, _mX, it2;
+						let freeW2 = freeW - max_w - next.placeWidth;//Сколько максимум может поместиться следом
+						if(freeW2 > 0)
+						for(k=j+1;k<framesInPageByS.length; k++ ){
+							if(framesInPageByS[k].placeHeight!==next.placeHeight)break;
+							freeW2-=framesInPageByS[k].placeWidth;
+							if(freeW<0)break;
+							nextList.push(framesInPageByS[k]);
+						} 
+						rowCount = Math.ceil(next.placeHeight/item.placeHeight);
+						while(nextList.length>0){ 
+							let nextW = 0, w=0;
+							for(k=0;k<nextList.length;k++)nextW+=nextList[k].placeWidth
+							realRowsCount = 1;
+							listX[k]._tx = x;
+							listX[k]._ty = y;
+							tRX = x+listX[0].placeWidth;
+							tY = y;
+							_mX = maxX - nextW
+							for(k=1; k< listX.length; k++){
+								it2 = listX[k]
+								tRX+=it2.placeWidth;
+								if(!check(tRX)){
+									// TODO
+									let _n = findFree(tRX,tY,it2.placeWidth,it2.placeHeight)
+									if(!_n || (_n[1]!==tY || _n[0]<tRX)){
+										realRowsCount+=100; break;
+										// TODO:
+									} 
+									tRX = _n[0]
+								}
+								if(tRX > _mX ){
+									realRowsCount++; tRX=x;
+									tY+=it2.placeHeight;
+									if(realRowsCount > rowCount)break
+								} 
+								it2._tx = tRX-it2.placeWidth;
+								it2._ty = tY;
+
+							}
+							if(realRowsCount > rowCount){
+								nextList.length--;
+							}else{
+								break;
+							}
+						}
+						if(nextList.length>0){
+							for(k=0; k<listX.length;k++){
+								listX[k].x=listX[k]._tx
+								listX[k].y=listX[k]._ty
+								this.framesInPage.push(item);
+							}
+							for(k=0; k<nextList.length;k++){
+								x = _mX + (i>0? nextList[i-1].placeWidth : 0)
+								listX[k].x=x
+								listX[k].y=y
+								this.framesInPage.push(item);
+							}
+							i+=listX.length + nextList.length
+							// y+=nextList[0].placeHeight;
+							// x = minX;
+							continue
+						}
+					}
+				}
+				
+				if(i>0){ 
+					let pos = findFree(x,y,item.placeWidth,item.placeHeight);
+					if(!pos)break;
+					x = pos[0]
+					y = pos[1] 
+				}
+				
+				item.x=x;
+				item.y=y;
+				this.framesInPage.push(item);
+			}
+		}
+		
+
 		return this.framesInPage;
 	},
 	page : 0,
+	scenePage : 0,
 	frame : 0,
 	PX:0,
 	PY:0, 
 	framesList : [],
 	framesInPage : [],
 	framesData : {},
-	setTitle(D, update){
+	
+	setFullImg(icf, callback){
+		if(icf && icf.src){
+			let ctx = this.ctx;
+			let img = new Image();
+			img.onload=function(){ 
+				if(icf.width === 'auto'){icf.width = this.width;icf.height = this.height;}
+				if(icf.width&&!icf.height)icf.height=this.height*icf.width/this.width; 
+				icf.width = icf.width||PAGE.width;icf.height = icf.height||PAGE.height;
+				
+				if(icf.x === '50%')icf.x = (PAGE.width - icf.width)*0.5;
+				if(icf.y === '50%')icf.y = (PAGE.height - icf.height)*0.5;
+				
+				ctx.drawImage(this,icf.x||0,icf.y||0,icf.width,icf.height ); 
+				callback(); 
+			}
+			img.onerror=()=>callback();
+			// console.log(D.img.src)
+			img.src = 	icf.path + '/' +icf.src+'?v='+Date.now();
+		}else callback()
+	},
+	titlePage(D, update){
+		if(!update)this.newPage();
+		let covOpt = PROJECT.chapterCover;
+			if(covOpt){
+				covOpt = JSON.parse(JSON.stringify(covOpt))
+				for(let k in D){
+					if(typeof D[k] === "object")covOpt[k] =  Object.assign(covOpt[k],D[k])
+					else switch(k){
+						case "title":
+							covOpt.title.text = D.title
+						break
+						case "chapter":
+							covOpt.chapter.num = D.chapter
+						break
+						case "top":
+							covOpt.chapter.top = D.top
+						break
+						case "dtop":
+							covOpt.title.dtop = D.dtop
+						break
+						default:
+							covOpt[k] = D[k]
+						break
+					}
+					
+
+					}
+					for(var k in covOpt)switch(k){
+						case "bg": 
+							covOpt[k].path = covOpt[k].path || "%dataDir%"
+						case "img":
+							covOpt[k].path = covOpt[k].path || "%scene%"
+							covOpt[k].path = covOpt[k].path
+							.replace("%dataDir%",PROJECT.dataDir)
+							.replace("%scenesDir%",PROJECT.scenesDir)
+							.replace("%scene%",PAGE.opScenes[0] ) 
+							if(covOpt[k].src)covOpt[k].src = covOpt[k].src.replace("%chapter%",covOpt.chapter.num)  
+						break
+					}
+					PAGE.setFullImg(covOpt.bg,()=>{
+						PAGE.setFullImg(covOpt.img,()=>{
+							PAGE.setTitle(covOpt, update); 
+						})
+					})
+			}else if(!update){
+				this.appendPage();
+				this.stat.pages++;
+				PAGE.setList();
+	
+			}
+		
+	}, 
+	setTitle(covOpt, update){
 		let ctx = this.ctx;
 		switch(PROJECT.name){
-			case "Саша":
+			case "__Саша":
 				//this.ctx.rect(x,y,iw,ih);
 				ctx.beginPath();
 			ctx.moveTo(36,82);
@@ -337,14 +628,14 @@ PAGE = {
 			this.ctx.stroke();
 			//162.3
 			
-				let Y = D.top || 500,X;
+				let Y = covOpt.top || 500,X;
 				ctx.font = "126px Alexandra Zeferino Three";
 				ctx.fillStyle = PROJECT.styles.fillStyle;
 				ctx.textAlign="center";
-				ctx.fillText(`Глава ${D.chapter}`,PAGE.width/2,Y);
+				ctx.fillText(`Глава ${covOpt.chapter}`,PAGE.width/2,Y);
 				ctx.font = "76px AleksandraC";
-				Y+=(D.dtop || 170);
-				TML = D.title.split('\n'); 
+				Y+=(covOpt.dtop || 170);
+				TML = covOpt.title.split('\n'); 
 				for (let i = 0; i<TML.length; i++) ctx.fillText(TML[i],PAGE.width/2,Y + (i*87)); 
 				ctx.font = "32px AleksandraC";
 				X = PAGE.width - 160; Y=PAGE.height - 140;
@@ -357,36 +648,45 @@ PAGE = {
 				ctx.arc( X,Y-4,r,0,2 * Math.PI,true);
 				ctx.stroke();
 		break;
+		default:{
+			let Y,X;
+
+			Y = covOpt.chapter.top;
+			if(Y<0)Y=PAGE.height+Y
+			ctx.font = covOpt.chapter.font;
+			ctx.fillStyle = covOpt.chapter.color || covOpt.color || PROJECT.styles.fillStyle;
+			ctx.textAlign = covOpt.chapter.textAlign || "center";
+			X = "X" in covOpt.chapter ?  covOpt.chapter.X : PAGE.width/2;
+			if(typeof X === "string" && X.indexOf('%')!==-1)X = parseFloat(X)/100 * PAGE.width
+			if(X<0)X+=PAGE.width
+			let num = covOpt.chapter.num
+			if(covOpt.chapter.romanStyle)num = convertToRoman(num)
+			ctx.fillText('Глава' + ' ' + num,X,Y);
+			
+
+			Y = covOpt.title.dtop ? Y + covOpt.title.dtop : covOpt.title.top
+			
+			if(Y<0)Y=PAGE.height+Y
+			ctx.font = covOpt.title.font;
+			ctx.fillStyle = covOpt.title.color || covOpt.color || PROJECT.styles.fillStyle;
+			ctx.textAlign = covOpt.title.textAlign || "center";
+			X = "X" in covOpt.title ?  covOpt.title.X : PAGE.width/2;
+			if(typeof X === "string" && X.indexOf('%')!==-1)X = parseFloat(X)/100 * PAGE.width
+			if(X<0)X+=PAGE.width
+			let lineHeight = covOpt.title.lineHeight || parseInt(covOpt.title.font)*3
+			
+			TML = covOpt.title.text || ''
+			TML = TML.split('\n'); 
+			for (let i = 0; i<TML.length; i++) ctx.fillText(TML[i],X,Y + (i*lineHeight)); 
+		}
 		}
 		if(!update){
 			this.appendPage();
+			this.stat.pages++;
 			PAGE.setList();
 
 		}
 	},
-	titlePage(D, update){
-		if(!update)this.newPage();
-		if(D.img){
-			let ctx = this.ctx;
-			let img = new Image();
-			img.onload=function(){ 
-				if(D.img.width === 'auto'){D.img.width = this.width;D.img.height = this.height;}
-				if(D.img.width&&!D.img.height)D.img.height=this.height*D.img.width/this.width; 
-				D.img.width = D.img.width||PAGE.width;D.img.height = D.img.height||PAGE.height;
-				
-				if(D.img.x === '50%')D.img.x = (PAGE.width - D.img.width)*0.5;
-				if(D.img.y === '50%')D.img.y = (PAGE.height - D.img.height)*0.5;
-				
-				ctx.drawImage(this,D.img.x||0,D.img.y||0,D.img.width,D.img.height ); 
-				PAGE.setTitle(D, update); 
-			}
-			img.onerror=()=>PAGE.setTitle(D, update);
-			// console.log(D.img.src)
-			img.src = 	PAGE.opScenes[0] + '/' + D.img.src+'?v='+Date.now();
-			}else PAGE.setTitle(D, update);
-		
-	}, 
-
 	checkCoord(x,y,placeWidth,placeHeight){
 
 	},
@@ -411,6 +711,7 @@ PAGE = {
 		}
 
 		var name = itemData.name,
+			sceneName = itemData.sceneInfo.name,
 			scale = itemData.scale,
 			scaled_Width = itemData.scaled_Width,
 			scaled_Height = itemData.scaled_Height,
@@ -430,9 +731,9 @@ PAGE = {
 		Искать куда поместится
 		
 		*/
-		if(this.spec[name]){// спецпозиций  
-			console.log(this.spec[name]);
-			({x,y} = this.spec[name]);
+		if(this.spec[sceneName]&&this.spec[sceneName][name]){// спецпозиций  
+			console.log(this.spec[sceneName][name]);
+			({x,y} = this.spec[sceneName][name]);
 			if(typeof x === 'string')x= mg+(~~x);if(x<0)x= mg+x;
 			if(typeof y === 'string')y= mg+(~~y);if(y<0)y= mg+y;
 		}if(this.pmatrix.length === 0){
@@ -444,16 +745,21 @@ PAGE = {
 			let l = pmatrix.length, 
 				maxX = PAGE.styles.maxX-scaled_Width, 
 				maxY = PAGE.styles.maxY-scaled_Height;
+				
+				// пытаемся скомпоновать
+
 			// if(name === 'K.S.23.0460')
 			// 	console.log(name);
 				var minY;// Минимальный y - чтобы не перебирать заведомо занятые значения
 			//Проверить отступы
 				var y0 = PAGE.styles.minY;
-				// Если следующий кадр по высоте - больше - переводим на новую строку
+				// Если следующий кадр по высоте - больше - переводим на новую строку 
 				if(!this.hasSpec && i>0 && i < list.length-1){//Если - не первый и не последний, и на странице нет "специальных"
 					let _next, bigIndex, MaxH = 0.9*PAGE.placeBox.height;
 					// Временный
-					_prev = list[i-1], _next = list[i+1],_naxt2 = list[i+2];
+					_prev = list[i-1], 
+					_next = list[i+1],
+					_naxt2 = list[i+2];
 					
 					let freeWidth = maxX, freeHeight = maxY - _prev.placeWidth - _prev.cx; 
 					if( 
@@ -465,25 +771,6 @@ PAGE = {
 					){
 						y0+=_prev.placeHeight;
 					}
-
-
-					// for(j = $i+1; j< framesInPage.length; j++){
-					// 	if( framesInPage[j].placeHeight >= MaxH ){
-							
-					// 	}
-					// }
-					// let _next = framesInPage[$i+1], _prev = framesInPage[0];
-					//  if( 
-					// 	_next.placeHeight > placeHeight
-					// 	&& y0 + _next.placeHeight + placeHeight > PAGE.styles.maxY&&
-					// 	_prev.placeHeight 
-					// 	){
-					// 	y0 = 
-					//  } 
-					// let hasBiggest = false;
-					// for(j = $i; j< framesInPage.length; j++){
-					// 	if(framesInPage)
-					// }
 				}
 
 			let xp0, xp1, yp0, yp1; 
@@ -503,7 +790,8 @@ PAGE = {
 						){
 							use =  false;
 							x=xp1;
-							minY = typeof minY === "undefined" || minY > yp1 ? yp1 : minY;
+							if( typeof minY === "undefined" || minY > yp1)minY = yp1;
+							 
 							break;
 							
 						}
@@ -535,22 +823,26 @@ PAGE = {
 			svgIMG : svgIMG,
 			svgPath : itemData.svgPath,
 			svgName : itemData.svgName,
+			sceneInfo : itemData.sceneInfo,
+			sceneName : sceneName,
 			arg : arg,
 			border : PROJECT.styles.FRAME.border && [x,y,scaled_Width,scaled_Height]
 		}; 
 		this.setCTXFrame(ctxData);
-
-		this.framesList.push({
+		let item = {
 			name:name, 
 			framePos : [x,y,scaled_Width,scaled_Height], 
 			imgPos: arg, 
 			img: pngIMG, 
 			imgFile: itemData.imgFile,
+			sceneInfo : itemData.sceneInfo,
+			sceneName : sceneName,
 			ctxData : ctxData,
 			path : itemData.path
-		});
+		}
+		this.framesList.push(item);
 		
-		this.pageData.frames.push(name);
+		this.pageData.frames.push(item);
 
 		PAGE.currentFrame += 1;
 		this.frame++; this.stat.frames++; 
@@ -583,14 +875,9 @@ PAGE = {
 		// console.log(this.framesList)
 		
 		this.framesList.forEach(frm =>{ 
+			let sceneName = frm.sceneName
 			var fra = DIV({className:'frame', name : frm.name, title:frm.name, parentNode:fr}  );
-			
-			INPUT({className:'h3', readonly : true, value : frm.name, parentNode:fra }).addEventListener('click',(ev)=>{
-				ev.target.select();
-				EDITOR.clipboardName(ev.target.value,ev.ctrlKey,ev.shiftKey)
-			})
-			ALink({className:'saveBtn', dataset : {name:frm.name}, download : frm.ctxData.svgName, parentNode:fra},'Сохранить')
-			.addEventListener('click',EDITOR.actions.saveBtn_click)
+			fra.dataset.scene = sceneName
 			STYLES.set(fra, {
 				left : frm.imgPos[4],
 				top : frm.imgPos[5],
@@ -600,7 +887,7 @@ PAGE = {
 				// backgroundSize : `${frm.imgPos[6]}px ${frm.imgPos[7]}px`
 
 			}) 
-			let cont = PROJECT.scene.texts[frm.name] || {texts : []};
+			let cont = PROJECT.scene.texts[sceneName][frm.name] || {texts : []};
 			let scale  = (frm.imgPos[6])/frm.imgPos[2];//+2*padding
 			// scale = Math.round(scale*100)/100;
 
@@ -633,6 +920,18 @@ PAGE = {
 			svgBlock.addEventListener('keydown',EDITOR.actions.Frame_keydown);
 
 			svgBlock.addEventListener('mouseout',EDITOR.actions.Frame_mouseout )
+
+			let ctrlBox = DIV({
+				className:'frameController',
+				parentNode:fra
+			})
+			
+			INPUT({className:'h3', readonly : true, value : frm.name, parentNode:ctrlBox }).addEventListener('click',(ev)=>{
+				ev.target.select();
+				EDITOR.clipboardName(ev.target.closest('.frame').dataset.scene,ev.target.value,ev.ctrlKey,ev.shiftKey)
+			})
+			ALink({className:'saveBtn', dataset : {name:frm.name}, download : frm.ctxData.svgName, parentNode:ctrlBox},'Сохранить')
+			.addEventListener('click',EDITOR.actions.saveBtn_click)
 
 			// var paddingX = scale*frm.imgPos[2] - frm.imgPos[6];
 			// var paddingY = scale*frm.imgPos[3] -  frm.imgPos[7];
@@ -708,16 +1007,18 @@ PAGE = {
 					if(!(n instanceof Element))PTag({parentNode:this},n)
 				}
 			})
-			*/
-			 
-		this.framesData[frm.name] = {
+			*/ 
+		this.framesData[sceneName] = this.framesData[sceneName] || {}
+		this.framesData[sceneName][frm.name] = {
 				name : frm.name,
 				data : frm,
 				block : fra,
 				content : cont,
 				scale : scale,
 				svg : svg,
-				ctxData : frm.ctxData
+				ctxData : frm.ctxData,
+				sceneName : sceneName,
+				sceneInfo : frm.sceneInfo
 			} 
 
 			svg.setAttribute('name',frm.name)
@@ -741,9 +1042,9 @@ PAGE = {
 			pageController = DIV({className:'pageController'});
 			let btn;
 			
-
-			btn = SPAN({className:'toggleBtn btn', title:'toggle Page ' + this.page},'▼');//▲►▼◄
-			SPAN({ parentNode: pageController },btn)
+			// let btnsOuter = SPAN({ className:'btnsOuter', parentNode: pageController },btn)
+			btn = SPAN({className:'toggleBtn btn', title:'toggle Page ' + this.page,parentNode: pageController},'▼');//▲►▼◄
+			
 			btn.dataset.page = this.page;
 			btn.addEventListener('click',function(){
 				var box = this.closest('.page-box');
@@ -758,16 +1059,9 @@ PAGE = {
 				}
 			});
 
-			btn = SPAN({className:'upBtn btn', title:'↑ Page', parentNode: pageController },'↑');//←↑→↓
+			btn = SPAN({className:'partStartBtn btn', title:'Начало выпуска', parentNode: pageController },'1');
 			btn.addEventListener('click',function(){
-				var box = this.closest('.page-box');
-				if(box.previousElementSibling)box.previousElementSibling.before(box);
-			});
-
-			btn = SPAN({className:'upBtn btn', title:'↓ Page', parentNode: pageController },'↓');
-			btn.addEventListener('click',function(){
-				var box = this.closest('.page-box');
-				if(box.nextElementSibling)box.nextElementSibling.after(box);
+				this.closest('.page-box').classList.toggle('partStart') 
 			});
 
 			// reload Page
@@ -792,26 +1086,54 @@ PAGE = {
 					// }
 				})
 			});
-			INPUT({parentNode: pageController, style: {opacity:0.5}, value : numToString(this.pageData.page)})
+			INPUT({parentNode: pageController, style: {opacity:0.5}, value : numToString(this.pageData.page)}) // numToString(this.pageData.page,4)
 			.addEventListener('click',function(ev){
 				this.select()
-				if(ev.ctrlKey)
-				navigator.clipboard.writeText(PROJECT.idName + '_' + this.value +'.png').then(function() {
-					/* clipboard successfully set */
-				  }, function() {
-					/* clipboard write failed */
-				  });
+				if(ev.ctrlKey){
+					let v = this.value
+					let n = PROJECT.idNumLength || 0
+					if(v.length<n){
+						v = '0'.repeat(n - v.length) + v
+					}
+					// TODO: partNum
+					navigator.clipboard.writeText(PROJECT.idName + '_' + v +'.png').then(function() {
+						/* clipboard successfully set */
+					  }, function() {
+						/* clipboard write failed */
+					  });
+				}
+				
 			})
+
+			btn = SPAN({className:'upBtn btn', title:'↑ Page', parentNode: pageController },'↑');//←↑→↓
+			btn.addEventListener('click',function(){
+				var box = this.closest('.page-box');
+				if(box.previousElementSibling)box.previousElementSibling.before(box);
+			});
+
+			btn = SPAN({className:'upBtn btn', title:'↓ Page', parentNode: pageController },'↓');
+			btn.addEventListener('click',function(){
+				var box = this.closest('.page-box');
+				if(box.nextElementSibling)box.nextElementSibling.after(box);
+			});
 		}
-		 
-		var pageBox = DIV({className:'page-box', parentNode:PAGE.container},[
+		let sceneName =  this.framesList[0]?.sceneName
+		if(sceneName!==this.sceneName){
+			this.scenePage = 0;
+			this.sceneName = sceneName
+		} 
+		var pageBox = DIV({className:'page-box', parentNode:PAGE.container, dataset:{page:this.page,scenepage:this.scenePage}},[
 			
 			pageController,
 			DIV({className:'page-block'},this.ctx.canvas),
 			DIV({className:'page-block'},pageData)
-		]);   
-
-		this.page++;this.closed=true;
+		]); 
+		
+		if(sceneName && PROJECT.scene.parts[sceneName].indexOf(this.scenePage+1)!==-1 || PROJECT.scene.Parts.indexOf(this.page)!==-1)
+			pageBox.classList.add('partStart')
+		this.page++;
+		this.scenePage++;
+		this.closed=true;
 	},
 	createPageFromData(pageData, callback){
 		this.setCanvas();
@@ -824,26 +1146,26 @@ PAGE = {
 		return this.ctx;
 		}
 		
-		var i = 0, name = pageData.frames[i], d,
+		var i = 0, item = pageData.frames[i], d,
 		ln = PAGE.lang,
 			onLoad = function(){
 				PAGE.setCTXFrame(d.ctxData);
 			i++;
-			name = pageData.frames[i];
-			if(name)f();
+			item = pageData.frames[i];
+			if(item)f();
 			else{
 				PAGE.setPageFooter(pageData.page);
 				callback ( PAGE.ctx );
 			}
 		};
 		var f = ( )=>{  
-			d = PAGE.framesData[name].data;
+			d = PAGE.framesData[item.sceneName][item.name].data;
 			let PNGI= new Image(); 
 			PNGI.onload = function(){
 
 				d.ctxData.pngIMG = this;
 				d.ctxData.svgIMG = false;
-				let sn = d.path+name;
+				let sn = d.path+d.name;
 				let SVGI = new Image(); 
 				SVGI.onload = function(){//svg теперь не обязательный, поскольку планируется экспортировать из браузера, где необходим
 					 d.ctxData.svgIMG = this; onLoad();
@@ -865,68 +1187,107 @@ PAGE = {
 	},
 	setPageFooter( page ){
 		let ctx = this.ctx, setImage = this.setImage;
-		ctx.beginPath();
-		ctx.moveTo(25,1194);
-		ctx.lineTo(25+775,1194);
-		ctx.stroke();
+		// ctx.beginPath();
+		// ctx.moveTo(25,1194);
+		// ctx.lineTo(25+775,1194);
+		// ctx.stroke();
 	//ctx.font = "Italic 30px AleksandraC";
 	//ctx.fillStyle = '#003';
 	//canvas.textAlign = "start";
 		ctx.textBaseline = "middle";
         var Y = 1230,X,img;
+		let footerFont = PAGE.getFontString('footer');
+
+		let footer =  PROJECT.styles.footer || {}
+				if(footer instanceof Array){
+					if(!PAGE.cachedFooterOpt){
+						let  defaultFooter;
+						let sceneNum = parseFloat(PAGE.scene.match(new RegExp(PROJECT.sceneNameMask))[1]);
+						PAGE.cachedFooterOpt = footer.find(f=>{
+							let ok = false
+							if(!f.scenes || f.scenes === "*"){
+								defaultFooter = f
+							}else{ 
+								ok = sceneNum >= f.scenes[0] && (f.scenes[1]===true || sceneNum <= f.scenes[1])
+
+							}
+							return ok
+						}) || defaultFooter
+					}
+					footer = PAGE.cachedFooterOpt
+					
+				}
+
+				img = new Image();
+				img.onload=function(){
+					// console.log(this);
+					let top = PAGE.height -this.height
+					ctx.drawImage(this,0,top , this.width, this.height ); 
+					let numOpt  = footer.num || {}
+					ctx.textBaseline= numOpt.textBaseline || "hanging";
+					ctx.font = numOpt.font || footer.font;
+					ctx.fillStyle = numOpt.fillStyle || footer.fillStyle || PROJECT.styles.fillStyle; 
+					let X=numOpt.X, Y = top + numOpt.Y;
+					ctx.fillText(page,X,Y); 
+
+
+					// if(cb)cb();
+				}
+				// img.onerror=cb;
+				img.src = 	PROJECT.dataDir +  '/' + footer.img;
+
         
 		switch(PROJECT.name){
 			case "ВНИИ Пустоты":
-				Y =1061; 
+				// Y =PAGE.height - 39;  
+
+				// setImage('footer.svg',[0, PAGE.height - 49]);
 				
-				ctx.textBaseline="hanging";
-				ctx.font = "700 35px Ubuntu";
-				ctx.fillStyle = '#999';
-				ctx.fillText(`${page}`,8,Y+1); 
-				ctx.font = "900 17px Ubuntu"; 
-				ctx.textAlign="center"; 
-				Y = 1073;
-				ctx.textBaseline="alphabetic";
-				X = this.width/2;
-				ctx.fillText(this.lang === 'en' ? 'SRI of the Void' : 'ВНИИ Пустоты',this.width/2,Y);
-				ctx.textAlign="end";  
-				ctx.fillText('VNII.SU  |  Skazochnik.ORG',this.width-10,Y); 
-				ctx.font = "700 14px Ubuntu"; 
+				// ctx.font = "900 17px Ubuntu"; 
+				// ctx.textAlign="center"; 
+				// Y = 1073;
+				// ctx.textBaseline="alphabetic";
+				// X = this.width/2;
+				// ctx.fillText(this.lang === 'en' ? 'SRI of the Void' : 'ВНИИ Пустоты',this.width/2,Y);
+				// ctx.textAlign="end";  
+				// ctx.fillText('VNII.SU  |  Skazochnik.ORG',this.width-10,Y); 
+				// ctx.font = "700 14px Ubuntu"; 
 				
-				let iY = Y+7, rX = this.width-10, bY = Y+20;
-				ctx.fillText(this.lang === 'en' ? 'patreon.com/grinya_lesnoy' : 'vk.com/lesnoy . skazochnik',rX,bY); 
-				//setImage('vk.png',[rX-=200,iY,16]);
-				//ctx.fillText('patreon.com/grinya_lesnoy',rX-=10,bY); 
-				if(this.lang === 'en') setImage('patreon.png',[rX-=200,iY]);
-				ctx.textAlign="start"; 
-				X = 540;
-				setImage('CC-BY-SA-Andere_Wikis_(v).svg',[X,Y-17,58]);
+				// let iY = Y+7, rX = this.width-10, bY = Y+20;
+				// ctx.fillText(this.lang === 'en' ? 'patreon.com/grinya_lesnoy' : 'vk.com/lesnoy . skazochnik',rX,bY); 
+				// //setImage('vk.png',[rX-=200,iY,16]);
+				// //ctx.fillText('patreon.com/grinya_lesnoy',rX-=10,bY); 
+				// // if(this.lang === 'en') setImage('patreon.png',[rX-=200,iY]);
+				// ctx.textAlign="start"; 
+				// X = 540;
+				// setImage('CC-BY-SA-Andere_Wikis_(v).svg',[X,Y-17,58]);
 				 
-				ctx.fillText('CC BY-SA',472+132,Y); 
-				ctx.fillText('Grinya Lesnoy',X,Y+20); 
+				// ctx.fillText('CC BY-SA',472+132,Y); 
+				// ctx.fillText('Grinya Lesnoy',X,Y+20); 
 			break;
 			case "Саша":
-				Y = 1230;
-				let footerFont = PAGE.getFontString('footer');
-				ctx.font = footerFont;
-				ctx.fillStyle = PROJECT.styles.fillStyle;
-				ctx.fillText(`Стр. ${page}`,25,Y); 
-				setImage('CC-BY-SA-Andere_Wikis_(v).svg',[402,1207,117,39]);
-				ctx.fillText('CC BY-SA',402+132,Y); 
-				X = 402+132+170;
-				ctx.font = "16px AleksandraC";	
-				ctx.textAlign="center";
-				ctx.fillText('18+',X,Y); 	
-				// ctx.textBaseline = 'middle'; 
-				ctx.beginPath(); 
-				let r = 18;
-				ctx.lineWidth = 2;
-				ctx.arc( X,Y-2,r,0,2 * Math.PI,true);
-				ctx.stroke();
-				ctx.textAlign="start"; 
-				ctx.font = footerFont;
-				ctx.fillText('= Саша =',833.0,Y); 	
-				ctx.fillText('Гриня Лесной   •   Skazochnik.ORG  | VNII.SU',1136.0,Y); 		
+				
+
+				// Y = 1230;
+				// ctx.font = footerFont;
+				// ctx.fillStyle = PROJECT.styles.fillStyle;
+				// ctx.fillText(`Стр. ${page}`,25,Y); 
+				// setImage('CC-BY-SA-Andere_Wikis_(v).svg',[402,1207,117,39]);
+				// ctx.fillText('CC BY-SA',402+132,Y); 
+				// X = 402+132+170;
+				// ctx.font = "16px AleksandraC";	
+				// ctx.textAlign="center";
+				// ctx.fillText('18+',X,Y); 	
+				// // ctx.textBaseline = 'middle'; 
+				// ctx.beginPath(); 
+				// let r = 18;
+				// ctx.lineWidth = 2;
+				// ctx.arc( X,Y-2,r,0,2 * Math.PI,true);
+				// ctx.stroke();
+				// ctx.textAlign="start"; 
+				// ctx.font = footerFont;
+				// ctx.fillText('= Саша =',833.0,Y); 	
+				// ctx.fillText('Гриня Лесной   •   Skazochnik.ORG  | VNII.SU',1136.0,Y); 		
 			break;
 		}  
 	},
@@ -992,7 +1353,7 @@ PAGE = {
 
 		st.id = "footer";
 		st.style.padding='20px 10px'; 
-		st.innerHTML=`<b>Pages:</b> ${this.stat.pages} (${PROJECT.scene.pages.first} - ${PROJECT.scene.pages.first+this.stat.pages})<br/>
+		st.innerHTML=`<b>Pages:</b> ${this.stat.pages} (${PROJECT.scene.pages.first} - ${PROJECT.scene.pages.first-1+this.stat.pages})<br/>
 		<b>Frames:</b> ${this.stat.frames}<br/>`;
 		PAGE.container.appendChild(st);
 
